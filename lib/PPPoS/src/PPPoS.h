@@ -12,19 +12,6 @@
 #include "netif/ppp/pppos.h"
 #include "Network.h"
 
-#ifndef LOG_STREAM
-#define LOG_STREAM Serial
-#endif
-#ifndef log
-#define log(x) LOG_STREAM.print(x)
-#endif
-#ifndef logln
-#define logln(x) LOG_STREAM.println(x)
-#endif
-#ifndef logf
-#define logf(x, ...) LOG_STREAM.printf(x, __VA_ARGS__)
-#endif
-
 class PPPoSClass {
   public:
     PPPoSClass();
@@ -48,7 +35,7 @@ class PPPoSClass {
     // Callback appelée par lwIP pour envoyer des trames sur le lien UART
     static u32_t pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx);
 
-    // Callback appelée pour notifier les changements d’état du lien PPP
+    // Callback appelée pour notifier les changements d'état du lien PPP
     static void ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx);
 };
 

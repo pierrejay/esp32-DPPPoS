@@ -1,4 +1,18 @@
 #include "PPPoS.h"
+#include "lwip/dns.h"
+
+#ifndef LOG_INTERFACE
+#define LOG_INTERFACE Serial
+#endif
+#ifndef log(x)
+#define log(x) LOG_INTERFACE.print(x)
+#endif
+#ifndef logln(x)
+#define logln(x) LOG_INTERFACE.println(x)
+#endif
+#ifndef logf(x, ...)
+#define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
+#endif
 
 PPPoSClass::PPPoSClass() : _serial(nullptr), ppp(nullptr) {
   // Rien de particulier dans le constructeur
@@ -10,9 +24,6 @@ PPPoSClass::~PPPoSClass() {
 
 void PPPoSClass::begin(HardwareSerial &serial) {
   _serial = &serial;
-  
-  // On ne fait plus d'attente ici car c'est le port de données, pas celui de debug
-  // while (!_serial) {}
 
   logln("[PPPoS] Initialisation de la pile TCP/IP");
   esp_netif_init();
@@ -27,11 +38,19 @@ void PPPoSClass::begin(HardwareSerial &serial) {
   }
   // Définit l’interface PPP comme interface réseau par défaut
   logln("[PPPoS] Configuration de l'interface par défaut");
-  pppapi_set_default(ppp);
+  auto retSetDefault = pppapi_set_default(ppp);
+  if (retSetDefault != ERR_OK) {
+    logf("[PPPoS] Erreur lors de la configuration de l'interface par défaut : %s\n", lwip_strerr(retSetDefault));
+    return;
+  }
 
   // Démarre la connexion PPP (le second paramètre est un flag, ici 0)
   logln("[PPPoS] Démarrage de la connexion PPP");
-  pppapi_connect(ppp, 0);
+  auto retConnect = pppapi_connect(ppp, 0);
+  if (retConnect != ERR_OK) {
+    logf("[PPPoS] Erreur lors de la connexion PPP : %s\n", lwip_strerr(retConnect));
+    return;
+  }
 }
 
 void PPPoSClass::loop() {
@@ -69,6 +88,33 @@ void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
   if (err_code == PPPERR_NONE) {
     logln("[PPPoS] Connexion PPP établie");
     logf("[PPPoS] Adresse IP : %s\n", ip4addr_ntoa(netif_ip4_addr(&self->ppp_netif)));
+
+    // Définit la passerelle par défaut
+    ip4_addr_t gw;
+    IP4_ADDR(&gw, 10,0,0,1);
+    netif_set_gw(&self->ppp_netif, &gw);
+    netif_set_default(&self->ppp_netif);
+
+    // Configure un serveur DNS, ici par exemple 8.8.8.8
+    ip_addr_t dns;
+    IP_ADDR4(&dns, 8, 8, 8, 8);
+    dns_setserver(0, &dns);
+    
+    // Affichage des serveurs DNS configurés
+    const ip_addr_t* dns1 = dns_getserver(0);
+    const ip_addr_t* dns2 = dns_getserver(1);
+    const ip_addr_t* dns3 = dns_getserver(2);
+
+    logln("[PPPoS] Serveurs DNS configurés :");
+    if (dns1 && !ip_addr_isany(dns1)) {
+      logf("[PPPoS] DNS1: %s\n", ip4addr_ntoa((const ip4_addr_t*)dns1));
+    }
+    if (dns2 && !ip_addr_isany(dns2)) {
+      logf("[PPPoS] DNS2: %s\n", ip4addr_ntoa((const ip4_addr_t*)dns2));
+    }
+    if (dns3 && !ip_addr_isany(dns3)) {
+      logf("[PPPoS] DNS3: %s\n", ip4addr_ntoa((const ip4_addr_t*)dns3));
+    }
   } else {
     logf("[PPPoS] Déconnecté, erreur : %d\n", err_code);
   }
