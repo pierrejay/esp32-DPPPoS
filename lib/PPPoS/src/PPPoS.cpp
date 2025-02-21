@@ -76,7 +76,6 @@ u32_t PPPoSClass::pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx
   PPPoSClass* self = (PPPoSClass*) ctx;
   if (self && self->_serial) {
     size_t written = self->_serial->write(data, len);
-    self->_serial->flush();
     logf("[PPPoS] Données envoyées : %d bytes\n", written);
     return written;
   }

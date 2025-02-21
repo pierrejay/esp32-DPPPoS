@@ -48,7 +48,7 @@ void pingGoogle() {
 void PPPoSTask(void *pvParameters) {
   while (true) {
     PPPoS.loop();
-    taskYIELD();
+    vTaskDelay(1);
   }
 }
 
