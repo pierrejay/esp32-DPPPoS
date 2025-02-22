@@ -4,18 +4,10 @@
 #define TXD_PIN D7
 #define RXD_PIN D6
 
-#ifndef LOG_INTERFACE
 #define LOG_INTERFACE Serial
-#endif
-#ifndef log(x)
 #define log(x) LOG_INTERFACE.print(x)
-#endif
-#ifndef logln(x)
 #define logln(x) LOG_INTERFACE.println(x)
-#endif
-#ifndef logf(x, ...)
 #define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
-#endif
 
 void hexdump(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++) {
@@ -30,6 +22,7 @@ void pingGoogle() {
   NetworkClient client;
   if (client.connect("google.com", 80)) {
     // Envoi d'une requête HTTP GET minimale
+    uint32_t startTime = millis();
     client.print("GET / HTTP/1.0\r\nHost: google.com\r\n\r\n");
     unsigned long timeout = millis() + 5000;  // timeout de 5 secondes
     while (client.connected() && millis() < timeout) {
@@ -38,17 +31,12 @@ void pingGoogle() {
         log(c);
       }
     }
-    logln("\nPing terminé");
+    uint32_t endTime = millis();
+    uint32_t duration = endTime - startTime;
+    logf("\nPing terminé en %d ms\n", duration);
     client.stop();
   } else {
     logln("Échec de la connexion à google.com");
-  }
-}
-
-void PPPoSTask(void *pvParameters) {
-  while (true) {
-    PPPoS.loop();
-    vTaskDelay(1);
   }
 }
 
@@ -57,17 +45,13 @@ void setup() {
   Serial.begin(115200);
   delay(3000);
   logln("Démarrage de la connexion PPPoS");
-  Serial1.begin(115200, SERIAL_8N1, RXD_PIN, TXD_PIN);
+  Serial1.begin(921600, SERIAL_8N1, RXD_PIN, TXD_PIN);
 
   // Par exemple, on peut utiliser Serial1 pour la liaison PPP, ou même Serial si disponible
   PPPoS.begin(Serial1);
-  xTaskCreate(PPPoSTask, "PPPoSTask", 16384, NULL, 1, NULL);
 }
 
 void loop() {
-  // Traitement des données PPP
-  // PPPoS.loop();
-
   // Une fois la connexion PPP établie, on peut utiliser l’API Arduino TCP/IP
   static uint32_t last_ping = 0;
   static uint32_t last_reconnect = 0;

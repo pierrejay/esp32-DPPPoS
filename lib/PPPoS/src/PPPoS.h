@@ -21,9 +21,6 @@ class PPPoSClass {
     // Exemple : PPPoS.begin(Serial1, 115200);
     void begin(HardwareSerial &serial);
 
-    // À appeler régulièrement dans loop() pour traiter les données UART entrantes
-    void loop();
-
     // Renvoie true si une adresse IP a été obtenue
     bool connected();
 
@@ -31,6 +28,12 @@ class PPPoSClass {
     HardwareSerial* _serial;  // Port série utilisé pour PPPoS
     ppp_pcb *ppp;             // Contrôle de la liaison PPP
     struct netif ppp_netif;     // Interface réseau associée
+
+    // Méthode loop privée maintenant
+    void loop();
+    
+    // Nouveau wrapper statique pour la tâche FreeRTOS
+    static void loopTask(void* pvParameters);
 
     // Callback appelée par lwIP pour envoyer des trames sur le lien UART
     static u32_t pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx);

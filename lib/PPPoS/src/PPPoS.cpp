@@ -1,17 +1,15 @@
 #include "PPPoS.h"
 #include "lwip/dns.h"
 
-#ifndef LOG_INTERFACE
+#ifdef PPPOS_DEBUG
 #define LOG_INTERFACE Serial
-#endif
-#ifndef log(x)
 #define log(x) LOG_INTERFACE.print(x)
-#endif
-#ifndef logln(x)
 #define logln(x) LOG_INTERFACE.println(x)
-#endif
-#ifndef logf(x, ...)
 #define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
+#else
+#define log(x)
+#define logln(x)
+#define logf(x, ...)
 #endif
 
 PPPoSClass::PPPoSClass() : _serial(nullptr), ppp(nullptr) {
@@ -20,6 +18,30 @@ PPPoSClass::PPPoSClass() : _serial(nullptr), ppp(nullptr) {
 
 PPPoSClass::~PPPoSClass() {
   // Gestion de la désallocation si nécessaire (non implémenté ici)
+}
+
+void PPPoSClass::loop() {
+  if (!_serial) return;
+  uint8_t buf[256];
+  // Si des données sont disponibles sur le port série, on les lit
+  if (_serial->available()) {
+    int len = _serial->readBytes(buf, sizeof(buf));
+    if (len > 0) {
+      // Injection des trames reçues dans la pile PPP
+      pppos_input(ppp, buf, len);
+      logf("[PPPoS] Données reçues : %d bytes\n", len);
+    }
+  }
+}
+
+
+// Ajoutez cette nouvelle fonction statique qui servira de wrapper
+void PPPoSClass::loopTask(void* pvParameters) {
+  PPPoSClass* instance = (PPPoSClass*)pvParameters;
+  while (true) {
+    instance->loop();
+    vTaskDelay(1);
+  }
 }
 
 void PPPoSClass::begin(HardwareSerial &serial) {
@@ -51,20 +73,10 @@ void PPPoSClass::begin(HardwareSerial &serial) {
     logf("[PPPoS] Erreur lors de la connexion PPP : %s\n", lwip_strerr(retConnect));
     return;
   }
-}
 
-void PPPoSClass::loop() {
-  if (!_serial) return;
-  uint8_t buf[256];
-  // Si des données sont disponibles sur le port série, on les lit
-  if (_serial->available()) {
-    int len = _serial->readBytes(buf, sizeof(buf));
-    if (len > 0) {
-      // Injection des trames reçues dans la pile PPP
-      pppos_input(ppp, buf, len);
-      logf("[PPPoS] Données reçues : %d bytes\n", len);
-    }
-  }
+  // Démarre la tâche de traitement des données UART
+  logln("[PPPoS] Démarrage de la tâche de traitement des données UART");
+  xTaskCreate(loopTask, "PPPoSTask", 16384, this, 1, NULL);
 }
 
 bool PPPoSClass::connected() {
