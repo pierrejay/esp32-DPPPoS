@@ -26,7 +26,7 @@ void PPPoSClass::LoopTask(void* pvParameters) {
   PPPoSClass* instance = (PPPoSClass*)pvParameters;
   while (true) {
     instance->loop();
-    vTaskDelay(1);
+    vTaskDelay(pdMS_TO_TICKS(1));
   }
 }
 
