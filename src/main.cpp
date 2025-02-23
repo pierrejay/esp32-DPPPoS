@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "PPPoS.h"
+#include <ESPAsyncWebServer.h>
 
 #define TXD_PIN D7
 #define RXD_PIN D6
@@ -60,6 +61,8 @@ void pingRPi() {
   }
 }
 
+AsyncWebServer server(80);
+
 
 void setup() {
   // Initialisation du port série pour le debug
@@ -78,6 +81,12 @@ void setup() {
 
   // Initialisation avec la configuration
   PPPoS.begin(Serial1, &config);
+
+  // Setup serveur web
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", "Hello World");
+  });
+  server.begin();
 }
 
 void loop() {
