@@ -7,9 +7,9 @@
 #define logln(x) LOG_INTERFACE.println(x)
 #define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
 #else
-#define log(x)
-#define logln(x)
-#define logf(x, ...)
+#define log(x) ((void)0)
+#define logln(x) ((void)0)
+#define logf(x, ...) ((void)0)
 #endif
 
 PPPoSClass::PPPoSClass() : _serial(nullptr), ppp(nullptr) {
@@ -29,7 +29,15 @@ void PPPoSClass::loop() {
     if (len > 0) {
       // Injection des trames reçues dans la pile PPP
       pppos_input(ppp, buf, len);
+      // Hexdump
       logf("[PPPoS] Données reçues : %d bytes\n", len);
+      size_t hexdump_len = len * 3 + 1;
+      char hexdump[hexdump_len];
+      for (size_t i = 0; i < len; i++) {
+        sprintf(&hexdump[i * 3], "%02X ", buf[i]);
+      }
+      logf("[PPPoS] RX Hexdump : %s\n", hexdump);
+      // Hexdump
     }
   }
 }
@@ -76,7 +84,7 @@ void PPPoSClass::begin(HardwareSerial &serial) {
 
   // Démarre la tâche de traitement des données UART
   logln("[PPPoS] Démarrage de la tâche de traitement des données UART");
-  xTaskCreate(loopTask, "PPPoSTask", 16384, this, 1, NULL);
+  xTaskCreate(loopTask, "PPPoSTask", 16384, this, 5, NULL);
 }
 
 bool PPPoSClass::connected() {
@@ -88,7 +96,15 @@ u32_t PPPoSClass::pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx
   PPPoSClass* self = (PPPoSClass*) ctx;
   if (self && self->_serial) {
     size_t written = self->_serial->write(data, len);
+    // Hexdump
     logf("[PPPoS] Données envoyées : %d bytes\n", written);
+    size_t hexdump_len = len * 3 + 1;
+    char hexdump[hexdump_len];
+    for (size_t i = 0; i < len; i++) {
+      sprintf(&hexdump[i * 3], "%02X ", data[i]);
+    }
+    logf("[PPPoS] TX Hexdump : %s\n", hexdump);
+    // Hexdump
     return written;
   }
   return 0;
