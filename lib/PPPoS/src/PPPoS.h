@@ -28,15 +28,16 @@ class PPPoSClass {
     };
 
     enum ConnectionStatus {
-      DISCONNECTED,
+      CONNECTED,
       CONNECTING,
-      CONNECTED
+      CONNECTION_LOST,
+      DISCONNECTED
     };
 
     PPPoSClass();
     ~PPPoSClass();
 
-    void begin(HardwareSerial &serial, const IPConfig* config = nullptr);
+    bool begin(HardwareSerial &serial, const IPConfig* config = nullptr);
     bool connected();
 
   private:
@@ -50,11 +51,13 @@ class PPPoSClass {
 
     // Private methods
     void loop();
-    void reconnect(); 
+    bool connect();
+    bool disconnect();
+    void setNetworkCfg(ip4_addr_t& gw, ip_addr_t& dns);
 
     // FreeRTOS tasks wrappers
     static void LoopTask(void* pvParameters);
-    static void ReconnectTask(void *pvParameters);
+    static void NetWatchdogTask(void *pvParameters);
 
     // PPP callbacks
     static u32_t pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx);

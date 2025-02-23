@@ -30,10 +30,17 @@ void PPPoSClass::LoopTask(void* pvParameters) {
   }
 }
 
-void PPPoSClass::ReconnectTask(void *pvParameters) {
+void PPPoSClass::NetWatchdogTask(void *pvParameters) {
   PPPoSClass* instance = (PPPoSClass*)pvParameters;
-  instance->reconnect();
-  vTaskDelete(NULL); // Delete the reconnect task after it's done
+  while (true) {
+    if (instance->connectionStatus == CONNECTION_LOST) {
+      instance->disconnect();
+    }
+    if (instance->connectionStatus == DISCONNECTED) {
+      instance->connect();
+    }
+    vTaskDelay(pdMS_TO_TICKS(3000));
+  }
 }
 
 
@@ -42,12 +49,8 @@ void PPPoSClass::ReconnectTask(void *pvParameters) {
 void PPPoSClass::loop() {
   if (!_serial) return;
 
-  // If connection is lost, launch reconnect task and delete the current loop task to stop UART processing
-  if (connectionStatus == DISCONNECTED) {
-    xTaskCreate(ReconnectTask, "ReconnectTask", 16384, this, 5, NULL);
-    vTaskDelete(NULL);
-    return;
-  }
+  // Only process data if connecting or connected
+  if (connectionStatus != CONNECTING && connectionStatus != CONNECTED) return;
 
   // Read data from UART
   uint8_t rx_buf[256];
@@ -73,37 +76,36 @@ void PPPoSClass::loop() {
   }
 }
 
-void PPPoSClass::reconnect() {
-  if (ppp != nullptr && connectionStatus == DISCONNECTED) {
-    connectionStatus = CONNECTING;
-
-    logln("[PPPoS] reconnect(): Starting reconnection procedure");
-
-    logln("[PPPoS] reconnect(): Resetting PPP PCB");
-    if (ppp) {
-      pppapi_free(ppp);
-      ppp = nullptr;
-    }
-    
-    logln("[PPPoS] reconnect(): Resetting network interface");
-    netif_remove(&ppp_netif);
-    memset(&ppp_netif, 0, sizeof(ppp_netif));
-
-    logln("[PPPoS] reconnect(): Waiting for stack to clean up");
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    
-    logln("[PPPoS] reconnect(): Restarting PPP connection");
-    if (_serial) begin(*_serial, &_config);
-  }
-}
-
 // ---------------- LIFECYCLE METHODS ----------------
 
-void PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
+bool PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
   _serial = &serial;
 
   if (config) _config = *config;
-  connectionStatus = CONNECTING;
+
+  logln("[PPPoS] begin(): Setting up PPPoS connection...");
+  bool connecting = connect();
+  if (!connecting) {
+    logln("[PPPoS] begin(): PPPoS connection setup failed, aborting");
+    return;
+  }
+  logln("[PPPoS] begin(): PPPoS connection setup complete, starting tasks...");
+
+  xTaskCreate(LoopTask, "PPPoS_LoopTask", 16384, this, 1, NULL);
+  xTaskCreate(NetWatchdogTask, "PPPoS_NetWatchdogTask", 16384, this, 1, NULL);
+}
+
+bool PPPoSClass::connected() {
+  return connectionStatus == CONNECTED;
+}
+
+// ---------------- CONNEXION METHODS ----------------
+
+bool PPPoSClass::connect() {
+  if (connectionStatus == CONNECTED || connectionStatus == CONNECTING) {
+    logln("[PPPoS] connect(): Connection already active, aborting");
+    return false;
+  }
 
   logln("[PPPoS] begin(): Initializing TCP/IP stack");
   esp_netif_init();
@@ -114,8 +116,7 @@ void PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
     // If creation failed, set connection status to DISCONNECTED and return.
     // This will require to call begin() again to try to reconnect, or reboot the device.
     logln("[PPPoS] Error creating PPPoS interface");
-    connectionStatus = DISCONNECTED;
-    return;
+    return false;
   }
 
   logln("[PPPoS] begin(): Setting default interface");
@@ -124,8 +125,7 @@ void PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
     // If setting default interface failed, set connection status to DISCONNECTED and return.
     // This will require to call begin() again to try to reconnect, or reboot the device.
     logf("[PPPoS] begin(): Error setting default interface : %s\n", lwip_strerr(retSetDefault));
-    connectionStatus = DISCONNECTED;
-    return;
+    return false;
   }
 
   logln("[PPPoS] begin(): Starting PPP connection");
@@ -134,8 +134,7 @@ void PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
     // If connecting failed, set connection status to DISCONNECTED and return.
     // This will require to call begin() again to try to reconnect, or reboot the device.
     logf("[PPPoS] begin(): Error connecting PPP : %s\n", lwip_strerr(retConnect));
-    connectionStatus = DISCONNECTED;
-    return;
+    return false;
   }
 
   if (_serial->available()) {
@@ -145,15 +144,54 @@ void PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
     }
   }
 
-  // Start the loop task to enable UART processing
-  logln("[PPPoS] begin(): Starting UART processing task");
-  xTaskCreate(LoopTask, "LoopTask", 16384, this, 5, NULL);
+  connectionStatus = CONNECTING;
+  return true;
 }
 
-bool PPPoSClass::connected() {
-  return connectionStatus == CONNECTED;
+bool PPPoSClass::disconnect() {
+  if (connectionStatus == DISCONNECTED) {
+    logln("[PPPoS] disconnect(): Interface already disconnected, aborting");
+    return false;
+  }
+
+  if (!ppp) {
+    logln("[PPPoS] disconnect(): No PPP interface found, aborting");
+    return false;
+  }
+
+  logln("[PPPoS] disconnect(): Starting disconnection procedure");
+
+  logln("[PPPoS] disconnect(): Resetting PPP PCB");
+  if (ppp) {
+    pppapi_free(ppp);
+    ppp = nullptr;
+  }
+  
+  logln("[PPPoS] disconnect(): Resetting network interface");
+  netif_remove(&ppp_netif);
+  memset(&ppp_netif, 0, sizeof(ppp_netif));
+
+  logln("[PPPoS] disconnect(): Waiting for stack to clean up");
+  vTaskDelay(pdMS_TO_TICKS(1000));
+
+  connectionStatus = DISCONNECTED;
+  return true;
 }
 
+void PPPoSClass::setNetworkCfg(ip4_addr_t& gw, ip_addr_t& dns) {
+  // Gateway configuration
+  if (_config.gateway != IPAddress(0,0,0,0)) {
+    IPAddressToLwIP(_config.gateway, gw);
+    netif_set_gw(&ppp_netif, &gw);
+    netif_set_default(&ppp_netif);
+  }
+
+  // DNS configuration
+  if (_config.dns != IPAddress(0,0,0,0)) {
+    IPAddressToLwIP(_config.dns, dns);
+    dns_setserver(0, &dns);
+  }
+}
 
 // ---------------- PPP CALLBACKS ----------------
 
@@ -186,26 +224,16 @@ void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
         return;
       }
       logln("[PPPoS] ppp_link_status_cb(): Connection established");
-      logf("[PPPoS] ppp_link_status_cb(): - IP address : %s\n", ip4addr_ntoa(netif_ip4_addr(&self->ppp_netif)));
 
-      // Gateway configuration
       ip4_addr_t gw;
-      if (self->_config.gateway != IPAddress(0,0,0,0)) {
-        self->IPAddressToLwIP(self->_config.gateway, gw);
-        netif_set_gw(&self->ppp_netif, &gw);
-        netif_set_default(&self->ppp_netif);
-      }
+      ip_addr_t dns;
+      self->setNetworkCfg(gw, dns);
       char gw_str[16];
       ip4addr_ntoa_r(&gw, gw_str, sizeof(gw_str));
-      logf("[PPPoS] ppp_link_status_cb(): - Gateway : %s\n", gw_str);
-
-      // DNS configuration
-      ip_addr_t dns;
-      if (self->_config.dns != IPAddress(0,0,0,0)) {
-        self->IPAddressToLwIP(self->_config.dns, dns);
-        dns_setserver(0, &dns);
-      }
       const ip_addr_t* dns1 = dns_getserver(0);
+
+      logf("[PPPoS] ppp_link_status_cb(): - IP address : %s\n", ip4addr_ntoa(netif_ip4_addr(&self->ppp_netif)));
+      logf("[PPPoS] ppp_link_status_cb(): - Gateway : %s\n", gw_str); 
       logf("[PPPoS] ppp_link_status_cb(): - DNS : %s\n", ip4addr_ntoa((const ip4_addr_t*)dns1));
 
       self->connectionStatus = CONNECTED;
@@ -214,7 +242,7 @@ void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
 
     case PPPERR_CONNECT:
       logln("[PPPoS] ppp_link_status_cb(): Connection lost");
-      self->connectionStatus = DISCONNECTED;
+      self->connectionStatus = CONNECTION_LOST;
       break;
 
     case PPPERR_USER:  // Disconnection requested by user
@@ -224,12 +252,12 @@ void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
     case PPPERR_IDLETIMEOUT:
     case PPPERR_CONNECTTIME:
       logf("[PPPoS] ppp_link_status_cb(): Disconnected, error : %d\n", err_code);
-      self->connectionStatus = DISCONNECTED;
+      self->connectionStatus = CONNECTION_LOST;
       break;
 
     default:
       logf("[PPPoS] ppp_link_status_cb(): Unknown error : %d\n", err_code);
-      self->connectionStatus = DISCONNECTED;
+      self->connectionStatus = CONNECTION_LOST;
       break;
   }
 }
