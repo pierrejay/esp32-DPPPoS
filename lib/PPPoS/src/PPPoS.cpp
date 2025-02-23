@@ -93,15 +93,16 @@ void PPPoSClass::reconnect() {
     vTaskDelay(pdMS_TO_TICKS(1000));
     
     logln("[PPPoS] reconnect(): Restarting PPP connection");
-    if (_serial) begin(*_serial);
+    if (_serial) begin(*_serial, &_config);
   }
 }
 
-
 // ---------------- LIFECYCLE METHODS ----------------
 
-void PPPoSClass::begin(HardwareSerial &serial) {
+void PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
   _serial = &serial;
+
+  if (config) _config = *config;
   connectionStatus = CONNECTING;
 
   logln("[PPPoS] begin(): Initializing TCP/IP stack");
@@ -189,17 +190,21 @@ void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
 
       // Gateway configuration
       ip4_addr_t gw;
-      IP4_ADDR(&gw, 10,0,0,1);
-      netif_set_gw(&self->ppp_netif, &gw);
-      netif_set_default(&self->ppp_netif);
+      if (self->_config.gateway != IPAddress(0,0,0,0)) {
+        self->IPAddressToLwIP(self->_config.gateway, gw);
+        netif_set_gw(&self->ppp_netif, &gw);
+        netif_set_default(&self->ppp_netif);
+      }
       char gw_str[16];
       ip4addr_ntoa_r(&gw, gw_str, sizeof(gw_str));
       logf("[PPPoS] ppp_link_status_cb(): - Gateway : %s\n", gw_str);
 
       // DNS configuration
       ip_addr_t dns;
-      IP_ADDR4(&dns, 8, 8, 8, 8);
-      dns_setserver(0, &dns);
+      if (self->_config.dns != IPAddress(0,0,0,0)) {
+        self->IPAddressToLwIP(self->_config.dns, dns);
+        dns_setserver(0, &dns);
+      }
       const ip_addr_t* dns1 = dns_getserver(0);
       logf("[PPPoS] ppp_link_status_cb(): - DNS : %s\n", ip4addr_ntoa((const ip4_addr_t*)dns1));
 
@@ -227,6 +232,25 @@ void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
       self->connectionStatus = DISCONNECTED;
       break;
   }
+}
+
+
+void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip_addr_t &lwip_ip) {
+  IP_ADDR4(&lwip_ip, 
+    arduino_ip[0], 
+    arduino_ip[1], 
+    arduino_ip[2], 
+    arduino_ip[3]
+  );
+}
+
+void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip4_addr_t &lwip_ip) {
+  IP4_ADDR(&lwip_ip,
+    arduino_ip[0],
+    arduino_ip[1],
+    arduino_ip[2],
+    arduino_ip[3]
+  );
 }
 
 // Global instance of the library (for simple access from the sketch)

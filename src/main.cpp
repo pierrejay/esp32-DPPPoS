@@ -70,8 +70,14 @@ void setup() {
   Serial1.setRxBufferSize(2048);
   Serial1.begin(115200, SERIAL_8N1, RXD_PIN, TXD_PIN);
 
-  // Par exemple, on peut utiliser Serial1 pour la liaison PPP, ou même Serial si disponible
-  PPPoS.begin(Serial1);
+  // Configuration personnalisée
+  PPPoSClass::IPConfig config = {
+    .gateway = IPAddress(10, 0, 0, 1),
+    .dns = IPAddress(8, 8, 8, 8)
+  };
+
+  // Initialisation avec la configuration
+  PPPoS.begin(Serial1, &config);
 }
 
 void loop() {
