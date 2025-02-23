@@ -22,23 +22,29 @@ PPPoSClass::~PPPoSClass() {
 
 void PPPoSClass::loop() {
   if (!_serial) return;
-  uint8_t buf[256];
-  // Si des données sont disponibles sur le port série, on les lit
-  if (_serial->available()) {
-    int len = _serial->readBytes(buf, sizeof(buf));
-    if (len > 0) {
-      // Injection des trames reçues dans la pile PPP
-      pppos_input(ppp, buf, len);
-      // Hexdump
-      logf("[PPPoS] Données reçues : %d bytes\n", len);
-      size_t hexdump_len = len * 3 + 1;
-      char hexdump[hexdump_len];
-      for (size_t i = 0; i < len; i++) {
-        sprintf(&hexdump[i * 3], "%02X ", buf[i]);
-      }
-      logf("[PPPoS] RX Hexdump : %s\n", hexdump);
-      // Hexdump
+
+  // Gestion des données reçues
+  uint8_t rx_buf[256];
+  size_t rx_len = 0;
+  
+  // On lit tant qu'il y a des données et qu'on a de la place dans le buffer
+  while (_serial->available() && rx_len < sizeof(rx_buf)) {
+    int c = _serial->read();
+    if (c < 0) break;  // Erreur de lecture
+    rx_buf[rx_len++] = (uint8_t)c;
+  }
+
+  if (rx_len > 0) {
+    // Injection des trames reçues dans la pile PPP
+    pppos_input(ppp, rx_buf, rx_len);
+    // Hexdump
+    logf("[PPPoS] Données reçues : %d bytes\n", rx_len);
+    size_t hexdump_len = rx_len * 3 + 1;
+    char hexdump[hexdump_len];
+    for (size_t i = 0; i < rx_len; i++) {
+      sprintf(&hexdump[i * 3], "%02X ", rx_buf[i]);
     }
+    logf("[PPPoS] RX Hexdump : %s\n", hexdump);
   }
 }
 
@@ -58,7 +64,7 @@ void PPPoSClass::begin(HardwareSerial &serial) {
   logln("[PPPoS] Initialisation de la pile TCP/IP");
   esp_netif_init();
 
-  // Création de l’interface PPPoS.
+  // Création de l'interface PPPoS.
   // On passe "this" en contexte pour pouvoir accéder aux méthodes et au port série depuis les callbacks.
   logln("[PPPoS] Création de l'interface PPPoS");
   ppp = pppapi_pppos_create(&ppp_netif, pppos_output_cb, ppp_link_status_cb, this);
@@ -66,7 +72,7 @@ void PPPoSClass::begin(HardwareSerial &serial) {
     logln("[PPPoS] Erreur lors de la création de l'interface PPPoS");
     return;
   }
-  // Définit l’interface PPP comme interface réseau par défaut
+  // Définit l'interface PPP comme interface réseau par défaut
   logln("[PPPoS] Configuration de l'interface par défaut");
   auto retSetDefault = pppapi_set_default(ppp);
   if (retSetDefault != ERR_OK) {

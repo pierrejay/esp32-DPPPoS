@@ -66,6 +66,8 @@ void setup() {
   Serial.begin(115200);
   delay(3000);
   logln("Démarrage de la connexion PPPoS");
+  Serial1.setTxBufferSize(2048);
+  Serial1.setRxBufferSize(2048);
   Serial1.begin(115200, SERIAL_8N1, RXD_PIN, TXD_PIN);
 
   // Par exemple, on peut utiliser Serial1 pour la liaison PPP, ou même Serial si disponible
@@ -78,7 +80,7 @@ void loop() {
   static uint32_t last_reconnect = 0;
   if (PPPoS.connected()) {
     if (millis() - last_ping > 10000) {
-      pingRPi();
+      pingGoogle();
       last_ping = millis();
     }
   } else {
