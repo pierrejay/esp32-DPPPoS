@@ -28,10 +28,10 @@ class PPPoSClass {
     };
 
     enum ConnectionStatus {
-      CONNECTED,
-      CONNECTING,
-      CONNECTION_LOST,
-      DISCONNECTED
+      CONNECTED,          // Connected to the network (set by ppp_link_status_cb() only)
+      CONNECTING,         // Connecting to the network (set by connect() only)
+      CONNECTION_LOST,    // Connection lost (set by ppp_link_status_cb() only)
+      DISCONNECTED        // Disconnected from the network (set by disconnect() only)
     };
 
     PPPoSClass();
@@ -46,7 +46,7 @@ class PPPoSClass {
     HardwareSerial* _serial;  // Serial port used for PPPoS
     ppp_pcb *ppp;             // PPP control block
     struct netif ppp_netif;   // PPP network interface
-    ConnectionStatus connectionStatus;
+    volatile ConnectionStatus connectionStatus;
     IPConfig _config;         // IP configuration (gateway, dns)
 
     // Private methods
