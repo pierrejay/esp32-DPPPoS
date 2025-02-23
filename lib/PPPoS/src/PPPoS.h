@@ -14,32 +14,40 @@
 
 class PPPoSClass {
   public:
+
+    enum ConnectionStatus {
+      DISCONNECTED,
+      CONNECTING,
+      CONNECTED
+    };
+
     PPPoSClass();
     ~PPPoSClass();
 
-    // Démarre la liaison PPP sur le port série donné et avec le débit spécifié.
-    // Exemple : PPPoS.begin(Serial1, 115200);
     void begin(HardwareSerial &serial);
-
-    // Renvoie true si une adresse IP a été obtenue
     bool connected();
 
+
   private:
-    HardwareSerial* _serial;  // Port série utilisé pour PPPoS
-    ppp_pcb *ppp;             // Contrôle de la liaison PPP
-    struct netif ppp_netif;     // Interface réseau associée
 
-    // Méthode loop privée maintenant
+    // Private attributes
+    HardwareSerial* _serial;  // Serial port used for PPPoS
+    ppp_pcb *ppp;             // PPP control block
+    struct netif ppp_netif;   // PPP network interface
+    ConnectionStatus connectionStatus;
+
+    // Private methods
     void loop();
-    
-    // Nouveau wrapper statique pour la tâche FreeRTOS
-    static void loopTask(void* pvParameters);
+    void reconnect(); 
 
-    // Callback appelée par lwIP pour envoyer des trames sur le lien UART
+    // FreeRTOS tasks wrappers
+    static void LoopTask(void* pvParameters);
+    static void ReconnectTask(void *pvParameters);
+
+    // PPP callbacks
     static u32_t pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx);
-
-    // Callback appelée pour notifier les changements d'état du lien PPP
     static void ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx);
+
 };
 
 extern PPPoSClass PPPoS;
