@@ -2,16 +2,19 @@
 
 ## Overview
 
-The PPPoS library establishes a Point-to-Point Protocol (PPP) connection between an ESP32 and a Linux host through UART, without requiring a GSM modem. This approach provides a robust and secure way to connect an ESP32 to the Internet or expose it remotely, particularly suited for IoT projects requiring reliable and secure connectivity.
+The PPPoS library implements a Point-to-Point Protocol (PPP) connection between an ESP32 and a Linux host via UART. Unlike traditional PPP implementations from Espressif examples that require a GSM modem, this library establishes a direct serial connection to a Linux machine, leveraging its built-in routing and NAT capabilities to provide Internet connectivity to the ESP32.
 
-It is fully compatible with ESP32's native TCP/IP stack in a transparent way,, as if it was an Ethernet or WiFi connection, allowing to use the classic Arduino API (`NetworkClient`...) and libraries relying on the TCP/IP stack
-like `ESPAsyncWebServer`. 
+This library seamlessly integrates with ESP32's native TCP/IP stack, making the PPP connection appear as a standard network interface (similar to WiFi or Ethernet). This enables the use of familiar Arduino networking APIs (`NetworkClient`, etc.) and popular libraries like `ESPAsyncWebServer` without any modifications.
 
-The library was inspired by the [ESP32-PPPos-TLS](https://github.com/hussainhadi673/ESP32-PPPos-TLS) example from `hussainhadi673`, but without TLS (local peer-to-peer connection) & packaged as an Arduino C++ library.
+A key feature is the ability to expose the ESP32 securely to the Internet through Tailscale running on the Linux host. This provides a simple yet secure way to create remotely accessible IoT devices without complex VPN setups or cloud service dependencies.
 
-Through a Tailscale tunnel running on the Linux host, it is possible to remotely access the ESP32's network in a fully secure way, making it highly convenient to create a secure web server exposed to the outside world without the need to setup a VPN or push data to a cloud service.
+The library builds upon the concepts from [ESP32-PPPos-TLS](https://github.com/hussainhadi673/ESP32-PPPos-TLS) by hussainhadi673, reimplemented as a standalone Arduino library without TLS (as security is handled at the Tailscale level). 
 
-The library supports automatic reconnection with a connection watchdog task, custom network configuration support (DNS, Gateway) and configurable debugging. It offers a decent performance for IoT use cases (tested at around 20 ms round trip time @ 115200 baud).
+Key features:
+- Reliable communication
+- Automatic connection management with watchdog task
+- Configurable network settings (DNS, Gateway)
+- Error handling & debug logging
 
 ## Prerequisites
 
