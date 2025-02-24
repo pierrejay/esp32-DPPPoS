@@ -38,7 +38,8 @@ class PPPoSClass {
     PPPoSClass();
 
     bool begin(HardwareSerial &serial, const IPConfig* config = nullptr);
-    bool connected();
+    bool connected() const;
+    ConnectionStatus getStatus() const;
 
   private:
 

@@ -39,11 +39,13 @@ bool PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
   return true;
 } // begin()
 
-bool PPPoSClass::connected() {
+bool PPPoSClass::connected() const {
   return connectionStatus == CONNECTED;
 } // connected()
 
-
+PPPoSClass::ConnectionStatus PPPoSClass::getStatus() const {
+  return connectionStatus;
+} // getStatus()
 
 // ---------------- TASK WRAPPERS ----------------
 
@@ -116,8 +118,6 @@ bool PPPoSClass::connect() {
   logln("[PPPoS] begin(): Creating PPPoS interface");
   ppp = pppapi_pppos_create(&ppp_netif, pppos_output_cb, ppp_link_status_cb, this);
   if (ppp == NULL) {
-    // If creation failed, set connection status to DISCONNECTED and return.
-    // This will require to call begin() again to try to reconnect, or reboot the device.
     logln("[PPPoS] Error creating PPPoS interface");
     return false;
   }
@@ -125,8 +125,6 @@ bool PPPoSClass::connect() {
   logln("[PPPoS] begin(): Setting default interface");
   auto retSetDefault = pppapi_set_default(ppp);
   if (retSetDefault != ERR_OK) {
-    // If setting default interface failed, set connection status to DISCONNECTED and return.
-    // This will require to call begin() again to try to reconnect, or reboot the device.
     logf("[PPPoS] begin(): Error setting default interface : %s\n", lwip_strerr(retSetDefault));
     return false;
   }
@@ -134,8 +132,6 @@ bool PPPoSClass::connect() {
   logln("[PPPoS] begin(): Starting PPP connection");
   auto retConnect = pppapi_connect(ppp, 0);
   if (retConnect != ERR_OK) {
-    // If connecting failed, set connection status to DISCONNECTED and return.
-    // This will require to call begin() again to try to reconnect, or reboot the device.
     logf("[PPPoS] begin(): Error connecting PPP : %s\n", lwip_strerr(retConnect));
     return false;
   }
