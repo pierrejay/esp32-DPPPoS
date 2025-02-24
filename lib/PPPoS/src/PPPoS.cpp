@@ -2,23 +2,48 @@
 #include "lwip/dns.h"
 
 #ifdef PPPOS_DEBUG
-#define LOG_INTERFACE Serial
-#define log(x) LOG_INTERFACE.print(x)
-#define logln(x) LOG_INTERFACE.println(x)
-#define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
+  #define LOG_INTERFACE Serial
+  #define log(x) LOG_INTERFACE.print(x)
+  #define logln(x) LOG_INTERFACE.println(x)
+  #define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
 #else
-#define log(x) ((void)0)
-#define logln(x) ((void)0)
-#define logf(x, ...) ((void)0)
+  #define log(x) ((void)0)
+  #define logln(x) ((void)0)
+  #define logf(x, ...) ((void)0)
 #endif
 
-PPPoSClass::PPPoSClass() : _serial(nullptr), ppp(nullptr), connectionStatus(DISCONNECTED) {
-  // Rien de particulier dans le constructeur
+
+PPPoSClass::PPPoSClass() : _serial(nullptr), ppp(nullptr), connectionStatus(DISCONNECTED) {}
+
+
+// ---------------- PUBLIC METHODS ----------------
+
+bool PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
+  _serial = &serial;
+  _serial->setTxBufferSize(UART_TX_BUFFER_SIZE);
+  _serial->setRxBufferSize(UART_RX_BUFFER_SIZE);
+
+  if (config) _config = *config;
+
+  logln("[PPPoS] begin(): Setting up PPPoS connection...");
+  bool connecting = connect();
+  if (!connecting) {
+    logln("[PPPoS] begin(): PPPoS connection setup failed, aborting");
+    return false;
+  }
+  logln("[PPPoS] begin(): PPPoS connection setup complete, starting tasks...");
+
+  xTaskCreate(LoopTask, "PPPoS_LoopTask", LOOPTASK_STACK_SIZE, this, LOOP_TASK_PRIORITY, NULL);
+  xTaskCreate(NetWatchdogTask, "PPPoS_NetWatchdogTask", NETWATCHDOGTASK_STACK_SIZE, this, NET_WATCHDOG_TASK_PRIORITY, NULL);
+
+  return true;
 }
 
-PPPoSClass::~PPPoSClass() {
-  // Gestion de la désallocation si nécessaire (non implémenté ici)
+bool PPPoSClass::connected() {
+  return connectionStatus == CONNECTED;
 }
+
+
 
 // ---------------- TASK WRAPPERS ----------------
 
@@ -43,7 +68,9 @@ void PPPoSClass::NetWatchdogTask(void *pvParameters) {
   }
 }
 
-// ---------------- LIFECYCLE METHODS ----------------
+
+
+// ---------------- LOOP FUNCTION ----------------
 
 void PPPoSClass::loop() {
   if (!_serial) return;
@@ -75,32 +102,7 @@ void PPPoSClass::loop() {
   }
 }
 
-// ---------------- LIFECYCLE METHODS ----------------
 
-bool PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
-  _serial = &serial;
-  _serial->setTxBufferSize(UART_TX_BUFFER_SIZE);
-  _serial->setRxBufferSize(UART_RX_BUFFER_SIZE);
-
-  if (config) _config = *config;
-
-  logln("[PPPoS] begin(): Setting up PPPoS connection...");
-  bool connecting = connect();
-  if (!connecting) {
-    logln("[PPPoS] begin(): PPPoS connection setup failed, aborting");
-    return false;
-  }
-  logln("[PPPoS] begin(): PPPoS connection setup complete, starting tasks...");
-
-  xTaskCreate(LoopTask, "PPPoS_LoopTask", LOOPTASK_STACK_SIZE, this, LOOP_TASK_PRIORITY, NULL);
-  xTaskCreate(NetWatchdogTask, "PPPoS_NetWatchdogTask", NETWATCHDOGTASK_STACK_SIZE, this, NET_WATCHDOG_TASK_PRIORITY, NULL);
-
-  return true;
-}
-
-bool PPPoSClass::connected() {
-  return connectionStatus == CONNECTED;
-}
 
 // ---------------- CONNEXION METHODS ----------------
 
@@ -196,6 +198,8 @@ void PPPoSClass::setNetworkCfg(ip4_addr_t& gw, ip_addr_t& dns) {
   }
 }
 
+
+
 // ---------------- PPP CALLBACKS ----------------
 
 u32_t PPPoSClass::pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx) {
@@ -265,6 +269,9 @@ void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
   }
 }
 
+
+
+// ---------------- UTILITY FUNCTIONS ----------------
 
 void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip_addr_t &lwip_ip) {
   IP_ADDR4(&lwip_ip, 
