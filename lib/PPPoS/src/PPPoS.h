@@ -3,7 +3,9 @@
 
 #include <Arduino.h>
 #include "sdkconfig.h"
-#if CONFIG_LWIP_PPP_SUPPORT
+
+// If PPP support is disabled, the library will not compile. Make sure to use the correct ESP32 Arduino core.
+#if CONFIG_LWIP_PPP_SUPPORT 
 #include "esp_netif.h"
 #include "lwip/opt.h"
 #include "lwip/sys.h"
@@ -77,7 +79,7 @@ class PPPoSClass {
     static void IPAddressToLwIP(const IPAddress &arduino_ip, ip_addr_t &lwip_ip);
     static void IPAddressToLwIP(const IPAddress &arduino_ip, ip4_addr_t &lwip_ip);
 
-};
+}; // PPPoSClass
 
 extern PPPoSClass PPPoS;
 

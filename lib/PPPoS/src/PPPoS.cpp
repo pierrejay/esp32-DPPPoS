@@ -37,11 +37,11 @@ bool PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
   xTaskCreate(NetWatchdogTask, "PPPoS_NetWatchdogTask", NETWATCHDOGTASK_STACK_SIZE, this, NET_WATCHDOG_TASK_PRIORITY, NULL);
 
   return true;
-}
+} // begin()
 
 bool PPPoSClass::connected() {
   return connectionStatus == CONNECTED;
-}
+} // connected()
 
 
 
@@ -53,7 +53,7 @@ void PPPoSClass::LoopTask(void* pvParameters) {
     instance->loop();
     vTaskDelay(pdMS_TO_TICKS(1));
   }
-}
+} // LoopTask()
 
 void PPPoSClass::NetWatchdogTask(void *pvParameters) {
   PPPoSClass* instance = (PPPoSClass*)pvParameters;
@@ -66,8 +66,7 @@ void PPPoSClass::NetWatchdogTask(void *pvParameters) {
     }
     vTaskDelay(pdMS_TO_TICKS(NET_WATCHDOG_INTERVAL));
   }
-}
-
+} // NetWatchdogTask()
 
 
 // ---------------- LOOP FUNCTION ----------------
@@ -100,8 +99,7 @@ void PPPoSClass::loop() {
       logf("[PPPoS] loop(): RX Hexdump : %s\n", hexdump);
     #endif
   }
-}
-
+} // loop()
 
 
 // ---------------- CONNEXION METHODS ----------------
@@ -151,7 +149,7 @@ bool PPPoSClass::connect() {
 
   connectionStatus = CONNECTING;
   return true;
-}
+} // connect()
 
 bool PPPoSClass::disconnect() {
   if (connectionStatus == DISCONNECTED) {
@@ -181,7 +179,7 @@ bool PPPoSClass::disconnect() {
 
   connectionStatus = DISCONNECTED;
   return true;
-}
+} // disconnect()
 
 void PPPoSClass::setNetworkCfg(ip4_addr_t& gw, ip_addr_t& dns) {
   // Gateway configuration
@@ -196,8 +194,7 @@ void PPPoSClass::setNetworkCfg(ip4_addr_t& gw, ip_addr_t& dns) {
     IPAddressToLwIP(_config.dns, dns);
     dns_setserver(0, &dns);
   }
-}
-
+} // setNetworkCfg()
 
 
 // ---------------- PPP CALLBACKS ----------------
@@ -219,7 +216,7 @@ u32_t PPPoSClass::pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx
     return written;
   }
   return 0;
-}
+} // pppos_output_cb()
 
 void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
   PPPoSClass* self = (PPPoSClass*) ctx;
@@ -267,8 +264,7 @@ void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
       self->connectionStatus = CONNECTION_LOST;
       break;
   }
-}
-
+} // ppp_link_status_cb()
 
 
 // ---------------- UTILITY FUNCTIONS ----------------
@@ -280,7 +276,7 @@ void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip_addr_t &lwip_ip
     arduino_ip[2], 
     arduino_ip[3]
   );
-}
+} // IPAddressToLwIP()
 
 void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip4_addr_t &lwip_ip) {
   IP4_ADDR(&lwip_ip,
@@ -289,7 +285,7 @@ void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip4_addr_t &lwip_i
     arduino_ip[2],
     arduino_ip[3]
   );
-}
+} // IPAddressToLwIP()
 
 // Global instance of the library (for simple access from the sketch)
 PPPoSClass PPPoS;
