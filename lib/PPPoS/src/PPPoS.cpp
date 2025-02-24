@@ -39,10 +39,9 @@ void PPPoSClass::NetWatchdogTask(void *pvParameters) {
     if (instance->connectionStatus == DISCONNECTED) {
       instance->connect();
     }
-    vTaskDelay(pdMS_TO_TICKS(3000));
+    vTaskDelay(pdMS_TO_TICKS(NET_WATCHDOG_INTERVAL));
   }
 }
-
 
 // ---------------- LIFECYCLE METHODS ----------------
 
@@ -80,6 +79,8 @@ void PPPoSClass::loop() {
 
 bool PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
   _serial = &serial;
+  _serial->setTxBufferSize(UART_TX_BUFFER_SIZE);
+  _serial->setRxBufferSize(UART_RX_BUFFER_SIZE);
 
   if (config) _config = *config;
 
@@ -87,12 +88,14 @@ bool PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
   bool connecting = connect();
   if (!connecting) {
     logln("[PPPoS] begin(): PPPoS connection setup failed, aborting");
-    return;
+    return false;
   }
   logln("[PPPoS] begin(): PPPoS connection setup complete, starting tasks...");
 
-  xTaskCreate(LoopTask, "PPPoS_LoopTask", 16384, this, 1, NULL);
-  xTaskCreate(NetWatchdogTask, "PPPoS_NetWatchdogTask", 16384, this, 1, NULL);
+  xTaskCreate(LoopTask, "PPPoS_LoopTask", LOOPTASK_STACK_SIZE, this, LOOP_TASK_PRIORITY, NULL);
+  xTaskCreate(NetWatchdogTask, "PPPoS_NetWatchdogTask", NETWATCHDOGTASK_STACK_SIZE, this, NET_WATCHDOG_TASK_PRIORITY, NULL);
+
+  return true;
 }
 
 bool PPPoSClass::connected() {
@@ -172,7 +175,7 @@ bool PPPoSClass::disconnect() {
   memset(&ppp_netif, 0, sizeof(ppp_netif));
 
   logln("[PPPoS] disconnect(): Waiting for stack to clean up");
-  vTaskDelay(pdMS_TO_TICKS(1000));
+  vTaskDelay(pdMS_TO_TICKS(DISCONNECT_CLEANUP_DELAY));
 
   connectionStatus = DISCONNECTED;
   return true;

@@ -13,7 +13,6 @@
 #include "Network.h"
 #include "lwip/ip_addr.h"
 
-
 class PPPoSClass {
   public:
 
@@ -22,8 +21,8 @@ class PPPoSClass {
       IPAddress dns;
       
       void setDefault() {
-        if (gateway == IPAddress(0,0,0,0)) gateway = IPAddress(10,0,0,1);
-        if (dns == IPAddress(0,0,0,0)) dns = IPAddress(8,8,8,8);
+        if (gateway == IPAddress(0,0,0,0)) gateway = DEFAULT_GATEWAY;
+        if (dns == IPAddress(0,0,0,0)) dns = DEFAULT_DNS;
       }
     };
 
@@ -41,6 +40,18 @@ class PPPoSClass {
     bool connected();
 
   private:
+
+    // Default values
+    static const IPAddress DEFAULT_GATEWAY;
+    static const IPAddress DEFAULT_DNS;
+    static constexpr uint16_t UART_RX_BUFFER_SIZE = 2048;
+    static constexpr uint16_t UART_TX_BUFFER_SIZE = 2048;
+    static constexpr uint16_t DISCONNECT_CLEANUP_DELAY = 1000;
+    static constexpr uint16_t NET_WATCHDOG_INTERVAL = 3000;
+    static constexpr uint8_t NET_WATCHDOG_TASK_PRIORITY = 1;
+    static constexpr uint8_t LOOP_TASK_PRIORITY = 5;
+    static constexpr uint32_t LOOPTASK_STACK_SIZE = 16384;
+    static constexpr uint32_t NETWATCHDOGTASK_STACK_SIZE = 16384;
 
     // Private attributes
     HardwareSerial* _serial;  // Serial port used for PPPoS
