@@ -77,6 +77,18 @@
       font-size: 12px;
       pointer-events: none;
     }
+    .google-ping-info {
+      margin-top: 30px;
+      padding: 20px;
+      background-color: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 4px;
+    }
+    .google-ping-info h2 {
+      margin-top: 0;
+      color: #4CAF50;
+      font-size: 1.2em;
+    }
   </style>
 </head>
 <body>
@@ -90,6 +102,13 @@
     <div class="status" id="statusDisplay">En attente du ping...</div>
     <div class="graph-container">
       <canvas id="latencyGraph"></canvas>
+    </div>
+    <div class="google-ping-info">
+      <h2>Ping vers Google</h2>
+      <div class="latency">
+        <span id="googleLatencyDisplay">-- ms</span>
+      </div>
+      <div class="status" id="googleStatusDisplay">En attente du ping...</div>
     </div>
   </div>
 
@@ -238,6 +257,31 @@
       updateGraph(null); // Redessiner le graphique après redimensionnement
     });
     setInterval(ping, 1000);
+
+    // Fonction pour récupérer les infos de ping Google
+    function updateGooglePing() {
+      fetch('/googlePing')
+        .then(response => response.text())
+        .then(text => {
+          const [latency, timestamp] = text.split(',');
+          if (latency === '0') {
+            document.getElementById('googleLatencyDisplay').innerText = 'Échec';
+            document.getElementById('googleStatusDisplay').innerText = 
+              "Dernière tentative à " + new Date(parseInt(timestamp)).toLocaleTimeString();
+          } else {
+            document.getElementById('googleLatencyDisplay').innerText = latency + ' ms';
+            document.getElementById('googleStatusDisplay').innerText = 
+              "Dernier ping réussi à " + new Date(parseInt(timestamp)).toLocaleTimeString();
+          }
+        })
+        .catch(err => {
+          document.getElementById('googleLatencyDisplay').innerText = '-- ms';
+          document.getElementById('googleStatusDisplay').innerText = "Erreur de récupération";
+        });
+    }
+
+    // Mettre à jour les infos de ping Google toutes les 2 secondes
+    setInterval(updateGooglePing, 2000);
   </script>
 </body>
 </html>

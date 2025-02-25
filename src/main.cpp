@@ -14,20 +14,29 @@
 #define logln(x) LOG_INTERFACE.println(x)
 #define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
 
-#define PPPOS_BAUDRATE 230400
-#define PPPOS_GATEWAY IPAddress(10, 0, 0, 1)
-#define PPPOS_DNS IPAddress(8, 8, 8, 8)
-#define PPPOS_GATEWAY_PORT 8080
+static constexpr uint32_t PPPOS_BAUDRATE = 230400;
+static const IPAddress PPPOS_GATEWAY(10, 0, 0, 1);
+static const IPAddress PPPOS_DNS(8, 8, 8, 8);
+static constexpr uint32_t PPPOS_GATEWAY_PORT = 8080;
+
+static constexpr uint32_t GOOGLE_PING_INTERVAL = 5000; // 0 = disabled
+static constexpr uint32_t GATEWAY_PING_INTERVAL = 0; // 0 = disabled
+static constexpr uint32_t PPP_CHECK_INTERVAL = 1000;
+
+// Structure pour stocker la dernière mesure de ping Google
+struct GooglePingInfo {
+  uint32_t latency;
+  uint32_t timestamp;
+} lastGooglePing = {0, 0};
 
 // Example of function using the Arduino TCP/IP API to perform a TCP connection
 void pingGoogle() {
   logln("Pinging google.com...");
   NetworkClient client;
   if (client.connect("google.com", 80)) {
-    // Send a minimal HTTP GET request
     uint32_t startTime = millis();
     client.print("GET / HTTP/1.0\r\nHost: google.com\r\n\r\n");
-    unsigned long timeout = millis() + 5000;  // timeout of 5 seconds
+    unsigned long timeout = millis() + 5000;
     while (client.connected() && millis() < timeout) {
       while (client.available()) {
         char c = client.read();
@@ -37,9 +46,16 @@ void pingGoogle() {
     uint32_t endTime = millis();
     uint32_t duration = endTime - startTime;
     logf("\nPing completed in %d ms\n", duration);
+    
+    // Sauvegarder les informations du ping
+    lastGooglePing.latency = duration;
+    lastGooglePing.timestamp = millis();
+    
     client.stop();
   } else {
     logln("Failed to connect to google.com");
+    lastGooglePing.latency = 0;
+    lastGooglePing.timestamp = millis();
   }
 }
 
@@ -122,22 +138,41 @@ void setup() {
     request->send(200, "text/plain", "pong");
   });
 
+  // Ajouter un nouvel endpoint pour récupérer les infos de ping Google
+  server.on("/googlePing", HTTP_GET, [](AsyncWebServerRequest *request){
+    String response = String(lastGooglePing.latency) + "," + String(lastGooglePing.timestamp);
+    request->send(200, "text/plain", response);
+  });
+
   server.begin();
 }
 
 void loop() {
   // Once the PPP connection is established, we can use the Arduino TCP/IP API
   static uint32_t last_ping = 0;
-  static uint32_t last_reconnect = 0;
+  static uint32_t last_ppp_check = 0;
+
   if (PPPoS.connected()) {
-    if (millis() - last_ping > 10000) {
-      pingGoogle();
-      last_ping = millis();
+
+    if constexpr (GOOGLE_PING_INTERVAL > 0) {
+      if (millis() - last_ping > GOOGLE_PING_INTERVAL) {
+        pingGoogle();
+        last_ping = millis();
+      } 
     }
-  } else {
-    if (millis() - last_reconnect > 1000) {
-      logln("PPP not connected...");
-      last_reconnect = millis();
+
+    if constexpr (GATEWAY_PING_INTERVAL > 0) {
+      if (millis() - last_ping > GATEWAY_PING_INTERVAL) {
+        pingGateway();
+        last_ping = millis();
+      }
     }
+
+  } 
+  else {
+      if (millis() - last_ppp_check > PPP_CHECK_INTERVAL) {
+        logln("PPP not connected...");
+        last_ppp_check = millis();
+      }
   }
 }
