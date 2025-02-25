@@ -1,6 +1,7 @@
 #include <Arduino.h>
-#include "PPPoS.h"
+#include "DPPPoS.h"
 #include <ESPAsyncWebServer.h>
+#include <SPIFFS.h>
 
 #define USB Serial
 #define UART Serial1
@@ -13,7 +14,7 @@
 #define logln(x) LOG_INTERFACE.println(x)
 #define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
 
-#define PPPOS_BAUDRATE 115200
+#define PPPOS_BAUDRATE 230400
 #define PPPOS_GATEWAY IPAddress(10, 0, 0, 1)
 #define PPPOS_DNS IPAddress(8, 8, 8, 8)
 #define PPPOS_GATEWAY_PORT 8080
@@ -78,10 +79,27 @@ void setup() {
   delay(3000);
 
   logln("== PPPoS Client Setup ==");
+  
+  // Initialisation de SPIFFS
+  if(!SPIFFS.begin(true)){
+    logln("Une erreur est survenue lors de l'initialisation de SPIFFS");
+    return;
+  }
+
+  // Debug : Liste les fichiers présents dans SPIFFS
+  File root = SPIFFS.open("/");
+  File file = root.openNextFile();
+  while(file){
+    logf("Fichier trouvé: %s\n", file.name());
+    file = root.openNextFile();
+  }
+
+  UART.setTxBufferSize(DPPPoS::UART_TX_BUFFER_SIZE);
+  UART.setRxBufferSize(DPPPoS::UART_RX_BUFFER_SIZE);
   UART.begin(PPPOS_BAUDRATE, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
 
   // Custom IP configuration
-  PPPoSClass::IPConfig config = {
+  DPPPoS::IPConfig config = {
     .gateway = PPPOS_GATEWAY,
     .dns = PPPOS_DNS
   };
@@ -94,10 +112,16 @@ void setup() {
     }
   }
 
-  // Setup serveur web
+  // Modification de la route racine pour servir index.html
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/plain", "Hello World");
+    request->send(SPIFFS, "/index.html", "text/html");
   });
+
+  // Ajouter un endpoint léger pour le ping
+  server.on("/ping", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", "pong");
+  });
+
   server.begin();
 }
 

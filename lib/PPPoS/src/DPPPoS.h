@@ -15,8 +15,19 @@
 #include "Network.h"
 #include "lwip/ip_addr.h"
 
-class PPPoSClass {
+class DPPPoS {
   public:
+      // Default values
+      static const IPAddress DEFAULT_GATEWAY;
+      static const IPAddress DEFAULT_DNS;
+      static constexpr uint16_t UART_RX_BUFFER_SIZE = 2048;
+      static constexpr uint16_t UART_TX_BUFFER_SIZE = 2048;
+      static constexpr uint16_t DISCONNECT_CLEANUP_DELAY = 1000;
+      static constexpr uint16_t NET_WATCHDOG_INTERVAL = 3000;
+      static constexpr uint8_t NET_WATCHDOG_TASK_PRIORITY = 1;
+      static constexpr uint8_t LOOP_TASK_PRIORITY = 5;
+      static constexpr uint32_t LOOPTASK_STACK_SIZE = 16384;
+      static constexpr uint32_t NETWATCHDOGTASK_STACK_SIZE = 16384;
 
     struct IPConfig {
       IPAddress gateway;
@@ -35,25 +46,13 @@ class PPPoSClass {
       DISCONNECTED        // Disconnected from the network (set by disconnect() only)
     };
 
-    PPPoSClass();
+    DPPPoS();
 
     bool begin(HardwareSerial &serial, const IPConfig* config = nullptr);
     bool connected() const;
     ConnectionStatus getStatus() const;
 
   private:
-
-    // Default values
-    static const IPAddress DEFAULT_GATEWAY;
-    static const IPAddress DEFAULT_DNS;
-    static constexpr uint16_t UART_RX_BUFFER_SIZE = 2048;
-    static constexpr uint16_t UART_TX_BUFFER_SIZE = 2048;
-    static constexpr uint16_t DISCONNECT_CLEANUP_DELAY = 1000;
-    static constexpr uint16_t NET_WATCHDOG_INTERVAL = 3000;
-    static constexpr uint8_t NET_WATCHDOG_TASK_PRIORITY = 1;
-    static constexpr uint8_t LOOP_TASK_PRIORITY = 5;
-    static constexpr uint32_t LOOPTASK_STACK_SIZE = 16384;
-    static constexpr uint32_t NETWATCHDOGTASK_STACK_SIZE = 16384;
 
     // Private attributes
     HardwareSerial* _serial;  // Serial port used for PPPoS
@@ -82,7 +81,7 @@ class PPPoSClass {
 
 }; // PPPoSClass
 
-extern PPPoSClass PPPoS;
+extern DPPPoS PPPoS;
 
 #endif // CONFIG_LWIP_PPP_SUPPORT
 #endif // PPPOS_H

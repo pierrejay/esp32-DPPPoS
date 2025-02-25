@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Ping Pong ESP32</title>
+  <style>
+    /* Thème sombre */
+    body {
+      margin: 0;
+      padding: 20px;
+      background-color: #121212;
+      color: #e0e0e0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    .latency {
+      font-size: 2.5em;
+      margin: 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+    }
+    .status {
+      font-size: 1em;
+      color: #ccc;
+      margin-bottom: 20px;
+    }
+    /* Indicateur rotatif */
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #333;
+      border-top-color: #e0e0e0;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .spinner.active {
+      opacity: 1;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    /* Style du graphique */
+    .graph-container {
+      background-color: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 20px;
+      margin-top: 20px;
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+      height: 200px;
+      display: block;
+      margin-left: 20px;
+    }
+    .y-axis-labels {
+      position: absolute;
+      left: 5px;
+      top: 20px;
+      bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #666;
+      font-size: 12px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Ping Pong ESP32</h1>
+    <p>Mesure de la latence des requêtes HTML toutes les secondes</p>
+    <div class="latency">
+      <div class="spinner" id="spinner"></div>
+      <span id="latencyDisplay">-- ms</span>
+    </div>
+    <div class="status" id="statusDisplay">En attente du ping...</div>
+    <div class="graph-container">
+      <canvas id="latencyGraph"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // Configuration du graphique
+    const maxDataPoints = 60; // 1 minute d'historique
+    const latencyData = new Array(maxDataPoints).fill(null);
+    const canvas = document.getElementById('latencyGraph');
+    const ctx = canvas.getContext('2d');
+    
+    function updateGraph(newLatency) {
+      // Ajouter la nouvelle valeur et supprimer la plus ancienne
+      latencyData.push(newLatency);
+      latencyData.shift();
+      
+      // Recalculer les dimensions réelles du canvas
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      
+      // Définir les marges
+      const margin = { top: 10, right: 10, bottom: 20, left: 50 };
+      const width = rect.width - margin.left - margin.right;
+      const height = rect.height - margin.top - margin.bottom;
+      
+      // Effacer le canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Maximum fixe de 1000ms
+      const maxLatency = 1000;
+      const yScale = height / maxLatency;
+      
+      // Dessiner la grille et les labels
+      ctx.strokeStyle = '#333';
+      ctx.fillStyle = '#666';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'right';
+      
+      // Lignes horizontales et labels
+      const steps = 5;
+      for(let i = 0; i <= steps; i++) {
+        const y = margin.top + (height * i / steps);
+        const value = Math.round(maxLatency * (1 - i / steps));
+        
+        ctx.beginPath();
+        ctx.moveTo(margin.left, y);
+        ctx.lineTo(rect.width - margin.right, y);
+        ctx.strokeStyle = '#333';
+        ctx.stroke();
+        
+        ctx.fillStyle = '#666';
+        ctx.fillText(value + 'ms', margin.left - 8, y + 4);
+      }
+      
+      // Dessiner la ligne des données
+      ctx.save();
+      ctx.translate(margin.left, margin.top);
+      ctx.beginPath();
+      ctx.strokeStyle = '#4CAF50';
+      ctx.lineWidth = 2;
+      
+      let firstPoint = true;
+      latencyData.forEach((value, index) => {
+        if(value !== null) {
+          const x = (index / (maxDataPoints - 1)) * width;
+          const y = height - (value * yScale);
+          
+          if(firstPoint) {
+            ctx.moveTo(x, y);
+            firstPoint = false;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+      });
+      
+      ctx.stroke();
+      ctx.restore();
+      
+      // Dessiner les points de données
+      ctx.save();
+      ctx.translate(margin.left, margin.top);
+      latencyData.forEach((value, index) => {
+        if(value !== null) {
+          const x = (index / (maxDataPoints - 1)) * width;
+          const y = height - (value * yScale);
+          
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
+          ctx.fillStyle = '#4CAF50';
+          ctx.fill();
+        }
+      });
+      ctx.restore();
+    }
+
+    function ping() {
+      const spinner = document.getElementById('spinner');
+      spinner.classList.add('active');
+      
+      const start = performance.now();
+      fetch('/ping' + '?cacheBust=' + new Date().getTime(), { cache: "no-store" })
+        .then(response => response.text())
+        .then(text => {
+          if (text !== 'pong') throw new Error('Réponse invalide');
+          
+          const end = performance.now();
+          const latency = Math.round(end - start);
+          
+          // Mettre à jour l'affichage
+          document.getElementById('latencyDisplay').innerText = latency + ' ms';
+          document.getElementById('statusDisplay').innerText = 
+            "Dernier ping réussi à " + new Date().toLocaleTimeString();
+          
+          // Mettre à jour le graphique
+          updateGraph(latency);
+          
+          // Arrêter le spinner si la latence est trop élevée
+          if(latency > 2000) {
+            spinner.classList.remove('active');
+          } else {
+            setTimeout(() => spinner.classList.remove('active'), 100);
+          }
+        })
+        .catch(err => {
+          document.getElementById('statusDisplay').innerText = "Erreur de ping : " + err;
+          spinner.classList.remove('active');
+          updateGraph(null);
+        });
+    }
+    
+    // Ajuster la taille du canvas pour la résolution de l'écran
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+    }
+    
+    // Initialisation
+    resizeCanvas();
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      updateGraph(null); // Redessiner le graphique après redimensionnement
+    });
+    setInterval(ping, 1000);
+  </script>
+</body>
+</html>

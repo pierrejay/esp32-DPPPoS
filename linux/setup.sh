@@ -10,6 +10,14 @@ sudo sysctl -w net.ipv4.ip_forward=1
 # Enable NAT masquerading to have internet access from the ESP32
 sudo iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -j MASQUERADE
 
+# OPTIONAL: Route port 80 of ESP32 (10.0.0.2) to Tailscale only
+# Only allow traffic from Tailscale to the ESP32 on port 80
+sudo iptables -t nat -A PREROUTING -i tailscale0 -p tcp -d 100.75.195.24 --dport 80 -j DNAT --to-destination 10.0.0.2:80
+# Allow traffic forward for this connection
+sudo iptables -A FORWARD -i tailscale0 -p tcp -d 10.0.0.2 --dport 80 -j ACCEPT
+sudo iptables -A FORWARD -o tailscale0 -p tcp -s 10.0.0.2 --sport 80 -j ACCEPT
+
+
 # Save iptables rules
 sudo iptables-save | sudo tee /etc/iptables.rules
 

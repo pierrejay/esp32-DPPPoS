@@ -1,7 +1,7 @@
-#include "PPPoS.h"
+#include "DPPPoS.h"
 #include "lwip/dns.h"
 
-#ifdef PPPOS_DEBUG
+#ifdef DPPPOS_DEBUG
   #define LOG_INTERFACE Serial
   #define log(x) LOG_INTERFACE.print(x)
   #define logln(x) LOG_INTERFACE.println(x)
@@ -13,52 +13,50 @@
 #endif
 
 
-PPPoSClass::PPPoSClass() : _serial(nullptr), ppp(nullptr), connectionStatus(DISCONNECTED) {}
+DPPPoS::DPPPoS() : _serial(nullptr), ppp(nullptr), connectionStatus(DISCONNECTED) {}
 
 
 // ---------------- PUBLIC METHODS ----------------
 
-bool PPPoSClass::begin(HardwareSerial &serial, const IPConfig* config) {
+bool DPPPoS::begin(HardwareSerial &serial, const IPConfig* config) {
   _serial = &serial;
-  _serial->setTxBufferSize(UART_TX_BUFFER_SIZE);
-  _serial->setRxBufferSize(UART_RX_BUFFER_SIZE);
 
   if (config) _config = *config;
 
-  logln("[PPPoS] begin(): Setting up PPPoS connection...");
+  logln("[PPPoS] begin(): Setting up DPPPoS connection...");
   bool connecting = connect();
   if (!connecting) {
-    logln("[PPPoS] begin(): PPPoS connection setup failed, aborting");
+    logln("[PPPoS] begin(): DPPPoS connection setup failed, aborting");
     return false;
   }
-  logln("[PPPoS] begin(): PPPoS connection setup complete, starting tasks...");
+  logln("[PPPoS] begin(): DPPPoS connection setup complete, starting tasks...");
 
-  xTaskCreate(LoopTask, "PPPoS_LoopTask", LOOPTASK_STACK_SIZE, this, LOOP_TASK_PRIORITY, NULL);
-  xTaskCreate(NetWatchdogTask, "PPPoS_NetWatchdogTask", NETWATCHDOGTASK_STACK_SIZE, this, NET_WATCHDOG_TASK_PRIORITY, NULL);
+  xTaskCreate(LoopTask, "DPPPoS_LoopTask", LOOPTASK_STACK_SIZE, this, LOOP_TASK_PRIORITY, NULL);
+  xTaskCreate(NetWatchdogTask, "DPPPoS_NetWatchdogTask", NETWATCHDOGTASK_STACK_SIZE, this, NET_WATCHDOG_TASK_PRIORITY, NULL);
 
   return true;
 } // begin()
 
-bool PPPoSClass::connected() const {
+bool DPPPoS::connected() const {
   return connectionStatus == CONNECTED;
 } // connected()
 
-PPPoSClass::ConnectionStatus PPPoSClass::getStatus() const {
+DPPPoS::ConnectionStatus DPPPoS::getStatus() const {
   return connectionStatus;
 } // getStatus()
 
 // ---------------- TASK WRAPPERS ----------------
 
-void PPPoSClass::LoopTask(void* pvParameters) {
-  PPPoSClass* instance = (PPPoSClass*)pvParameters;
+void DPPPoS::LoopTask(void* pvParameters) {
+  DPPPoS* instance = (DPPPoS*)pvParameters;
   while (true) {
     instance->loop();
     vTaskDelay(pdMS_TO_TICKS(1));
   }
 } // LoopTask()
 
-void PPPoSClass::NetWatchdogTask(void *pvParameters) {
-  PPPoSClass* instance = (PPPoSClass*)pvParameters;
+void DPPPoS::NetWatchdogTask(void *pvParameters) {
+  DPPPoS* instance = (DPPPoS*)pvParameters;
   while (true) {
     if (instance->connectionStatus == CONNECTION_LOST) {
       instance->disconnect();
@@ -73,7 +71,7 @@ void PPPoSClass::NetWatchdogTask(void *pvParameters) {
 
 // ---------------- LOOP FUNCTION ----------------
 
-void PPPoSClass::loop() {
+void DPPPoS::loop() {
   if (!_serial) return;
 
   // Only process data if connecting or connected
@@ -92,7 +90,7 @@ void PPPoSClass::loop() {
   if (rx_len > 0) {
     pppos_input(ppp, rx_buf, rx_len);
     logf("[PPPoS] loop(): Received %d bytes\n", rx_len);
-    #ifdef PPPOS_DEBUG
+    #ifdef DPPPOS_DEBUG
       size_t hexdump_len = rx_len * 3 + 1;
       char hexdump[hexdump_len];
       for (size_t i = 0; i < rx_len; i++) {
@@ -106,7 +104,7 @@ void PPPoSClass::loop() {
 
 // ---------------- CONNEXION METHODS ----------------
 
-bool PPPoSClass::connect() {
+bool DPPPoS::connect() {
   if (connectionStatus == CONNECTED || connectionStatus == CONNECTING) {
     logln("[PPPoS] connect(): Connection already active, aborting");
     return false;
@@ -115,10 +113,10 @@ bool PPPoSClass::connect() {
   logln("[PPPoS] begin(): Initializing TCP/IP stack");
   esp_netif_init();
 
-  logln("[PPPoS] begin(): Creating PPPoS interface");
+  logln("[PPPoS] begin(): Creating DPPPoS interface");
   ppp = pppapi_pppos_create(&ppp_netif, pppos_output_cb, ppp_link_status_cb, this);
   if (ppp == NULL) {
-    logln("[PPPoS] Error creating PPPoS interface");
+    logln("[PPPoS] Error creating DPPPoS interface");
     return false;
   }
 
@@ -147,7 +145,7 @@ bool PPPoSClass::connect() {
   return true;
 } // connect()
 
-bool PPPoSClass::disconnect() {
+bool DPPPoS::disconnect() {
   if (connectionStatus == DISCONNECTED) {
     logln("[PPPoS] disconnect(): Interface already disconnected, aborting");
     return false;
@@ -177,7 +175,7 @@ bool PPPoSClass::disconnect() {
   return true;
 } // disconnect()
 
-void PPPoSClass::setNetworkCfg(ip4_addr_t& gw, ip_addr_t& dns) {
+void DPPPoS::setNetworkCfg(ip4_addr_t& gw, ip_addr_t& dns) {
   // Gateway configuration
   if (_config.gateway != IPAddress(0,0,0,0)) {
     IPAddressToLwIP(_config.gateway, gw);
@@ -195,13 +193,13 @@ void PPPoSClass::setNetworkCfg(ip4_addr_t& gw, ip_addr_t& dns) {
 
 // ---------------- PPP CALLBACKS ----------------
 
-u32_t PPPoSClass::pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx) {
-  PPPoSClass* self = (PPPoSClass*) ctx;
+u32_t DPPPoS::pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx) {
+  DPPPoS* self = (DPPPoS*) ctx;
   if (self && self->_serial) {
     size_t written = self->_serial->write(data, len);
     // Hexdump
     logf("[PPPoS] pppos_output_cb(): Sent %d bytes\n", written);
-    #ifdef PPPOS_DEBUG
+    #ifdef DPPPOS_DEBUG
       size_t hexdump_len = len * 3 + 1;
       char hexdump[hexdump_len];
       for (size_t i = 0; i < len; i++) {
@@ -214,8 +212,8 @@ u32_t PPPoSClass::pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx
   return 0;
 } // pppos_output_cb()
 
-void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
-  PPPoSClass* self = (PPPoSClass*) ctx;
+void DPPPoS::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
+  DPPPoS* self = (DPPPoS*) ctx;
   
   switch(err_code) {
     case PPPERR_NONE: {
@@ -265,7 +263,7 @@ void PPPoSClass::ppp_link_status_cb(ppp_pcb *pcb, int err_code, void *ctx) {
 
 // ---------------- UTILITY FUNCTIONS ----------------
 
-void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip_addr_t &lwip_ip) {
+void DPPPoS::IPAddressToLwIP(const IPAddress &arduino_ip, ip_addr_t &lwip_ip) {
   IP_ADDR4(&lwip_ip, 
     arduino_ip[0], 
     arduino_ip[1], 
@@ -274,7 +272,7 @@ void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip_addr_t &lwip_ip
   );
 } // IPAddressToLwIP()
 
-void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip4_addr_t &lwip_ip) {
+void DPPPoS::IPAddressToLwIP(const IPAddress &arduino_ip, ip4_addr_t &lwip_ip) {
   IP4_ADDR(&lwip_ip,
     arduino_ip[0],
     arduino_ip[1],
@@ -284,4 +282,4 @@ void PPPoSClass::IPAddressToLwIP(const IPAddress &arduino_ip, ip4_addr_t &lwip_i
 } // IPAddressToLwIP()
 
 // Global instance of the library (for simple access from the sketch)
-PPPoSClass PPPoS;
+DPPPoS PPPoS;
