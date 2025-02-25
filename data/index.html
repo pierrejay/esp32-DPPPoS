@@ -14,34 +14,34 @@
       text-align: center;
     }
     .container {
-      max-width: 800px;
+      max-width: 500px;
       margin: auto;
     }
     h1 {
       margin-bottom: 20px;
     }
     .latency {
-      font-size: 2.5em;
-      margin: 20px 0;
+      font-size: 2em;
+      margin: 2px 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 15px;
+      gap: 10px;
     }
     .status {
-      font-size: 1em;
-      color: #ccc;
-      margin-bottom: 20px;
+      font-size: 0.9em;
+      margin: 2px 0;
     }
     /* Indicateur rotatif */
     .spinner {
-      width: 24px;
-      height: 24px;
-      border: 3px solid #333;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #333;
       border-top-color: #e0e0e0;
       border-radius: 50%;
       opacity: 0;
       transition: opacity 0.3s;
+      flex-shrink: 0;
     }
     .spinner.active {
       opacity: 1;
@@ -63,66 +63,79 @@
       width: 100%;
       height: 200px;
       display: block;
-      margin-left: 20px;
     }
-    .y-axis-labels {
-      position: absolute;
-      left: 5px;
-      top: 20px;
-      bottom: 20px;
+    .ping-stats {
       display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      color: #666;
-      font-size: 12px;
-      pointer-events: none;
+      gap: 15px;
+      justify-content: center;
+      margin-bottom: 20px;
     }
-    .google-ping-info {
-      margin-top: 30px;
-      padding: 20px;
+    .ping-box {
+      flex: 1;
+      padding: 12px;
       background-color: #1e1e1e;
       border: 1px solid #333;
       border-radius: 4px;
+      max-width: 220px;
     }
-    .google-ping-info h2 {
-      margin-top: 0;
-      color: #4CAF50;
+    .ping-box h2 {
+      margin: 0;
       font-size: 1.2em;
     }
+    .ping-box h2 .arrow {
+      opacity: 0.7;
+      margin: 0 5px;
+      font-family: monospace;
+    }
+    .ping-box.local h2 { color: #4CAF50; }
+    .ping-box.google h2 { color: #2196F3; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>Ping Pong ESP32</h1>
-    <p>Mesure de la latence des requêtes HTML toutes les secondes</p>
-    <div class="latency">
-      <div class="spinner" id="spinner"></div>
-      <span id="latencyDisplay">-- ms</span>
+    
+    <div class="ping-stats">
+      <!-- Box ping local -->
+      <div class="ping-box local">
+        <h2>Ping Client <span class="arrow">↔</span> ESP32</h2>
+        <div class="latency">
+          <div class="spinner" id="spinner"></div>
+          <span id="latencyDisplay">-- ms</span>
+        </div>
+        <div class="status" id="statusDisplay">En attente du ping...</div>
+      </div>
+
+      <!-- Box ping Google -->
+      <div class="ping-box google">
+        <h2>Ping ESP32 <span class="arrow">↔</span> Google</h2>
+        <div class="latency">
+          <div class="spinner" id="googleSpinner"></div>
+          <span id="googleLatencyDisplay">-- ms</span>
+        </div>
+        <div class="status" id="googleStatusDisplay">En attente du ping...</div>
+      </div>
     </div>
-    <div class="status" id="statusDisplay">En attente du ping...</div>
+
     <div class="graph-container">
       <canvas id="latencyGraph"></canvas>
-    </div>
-    <div class="google-ping-info">
-      <h2>Ping vers Google</h2>
-      <div class="latency">
-        <span id="googleLatencyDisplay">-- ms</span>
-      </div>
-      <div class="status" id="googleStatusDisplay">En attente du ping...</div>
     </div>
   </div>
 
   <script>
     // Configuration du graphique
     const maxDataPoints = 60; // 1 minute d'historique
-    const latencyData = new Array(maxDataPoints).fill(null);
+    const updateInterval = 1000; // 1 seconde
+    const localData = new Array(maxDataPoints).fill(null);
+    const googleData = new Array(maxDataPoints).fill(null);
     const canvas = document.getElementById('latencyGraph');
-    const ctx = canvas.getContext('2d');
     
-    function updateGraph(newLatency) {
-      // Ajouter la nouvelle valeur et supprimer la plus ancienne
-      latencyData.push(newLatency);
-      latencyData.shift();
+    // Variables pour stocker la dernière valeur Google entre deux mises à jour
+    let lastGoogleLatency = null;
+    let lastGoogleTimestamp = null;
+
+    function updateGraph() {
+      const ctx = canvas.getContext('2d');
       
       // Recalculer les dimensions réelles du canvas
       const rect = canvas.getBoundingClientRect();
@@ -138,8 +151,8 @@
       // Effacer le canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Maximum fixe de 1000ms
-      const maxLatency = 1000;
+      // Maximum fixe de 500ms
+      const maxLatency = 500;
       const yScale = height / maxLatency;
       
       // Dessiner la grille et les labels
@@ -163,53 +176,60 @@
         ctx.fillStyle = '#666';
         ctx.fillText(value + 'ms', margin.left - 8, y + 4);
       }
-      
-      // Dessiner la ligne des données
-      ctx.save();
-      ctx.translate(margin.left, margin.top);
-      ctx.beginPath();
-      ctx.strokeStyle = '#4CAF50';
-      ctx.lineWidth = 2;
-      
-      let firstPoint = true;
-      latencyData.forEach((value, index) => {
-        if(value !== null) {
-          const x = (index / (maxDataPoints - 1)) * width;
-          const y = height - (value * yScale);
-          
-          if(firstPoint) {
-            ctx.moveTo(x, y);
-            firstPoint = false;
-          } else {
-            ctx.lineTo(x, y);
+
+      // Fonction pour dessiner une ligne de données
+      function drawDataLine(data, color) {
+        ctx.save();
+        ctx.translate(margin.left, margin.top);
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        
+        let firstPoint = true;
+        data.forEach((value, index) => {
+          if(value !== null) {
+            const x = (index / (maxDataPoints - 1)) * width;
+            const y = height - (value * yScale);
+            
+            if(firstPoint) {
+              ctx.moveTo(x, y);
+              firstPoint = false;
+            } else {
+              ctx.lineTo(x, y);
+            }
           }
-        }
-      });
+        });
+        
+        ctx.stroke();
+        ctx.restore();
+
+        // Dessiner les points
+        ctx.save();
+        ctx.translate(margin.left, margin.top);
+        data.forEach((value, index) => {
+          if(value !== null) {
+            const x = (index / (maxDataPoints - 1)) * width;
+            const y = height - (value * yScale);
+            
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+          }
+        });
+        ctx.restore();
+      }
       
-      ctx.stroke();
-      ctx.restore();
-      
-      // Dessiner les points de données
-      ctx.save();
-      ctx.translate(margin.left, margin.top);
-      latencyData.forEach((value, index) => {
-        if(value !== null) {
-          const x = (index / (maxDataPoints - 1)) * width;
-          const y = height - (value * yScale);
-          
-          ctx.beginPath();
-          ctx.arc(x, y, 3, 0, Math.PI * 2);
-          ctx.fillStyle = '#4CAF50';
-          ctx.fill();
-        }
-      });
-      ctx.restore();
+      // Dessiner les deux lignes
+      drawDataLine(localData, '#4CAF50');  // Vert pour local
+      drawDataLine(googleData, '#2196F3');  // Bleu pour Google
     }
 
     function ping() {
       const spinner = document.getElementById('spinner');
       spinner.classList.add('active');
       
+      // Mise à jour du ping local
       const start = performance.now();
       fetch('/ping' + '?cacheBust=' + new Date().getTime(), { cache: "no-store" })
         .then(response => response.text())
@@ -219,15 +239,20 @@
           const end = performance.now();
           const latency = Math.round(end - start);
           
-          // Mettre à jour l'affichage
           document.getElementById('latencyDisplay').innerText = latency + ' ms';
           document.getElementById('statusDisplay').innerText = 
             "Dernier ping réussi à " + new Date().toLocaleTimeString();
           
-          // Mettre à jour le graphique
-          updateGraph(latency);
+          // Mise à jour des données locales
+          localData.push(latency);
+          localData.shift();
           
-          // Arrêter le spinner si la latence est trop élevée
+          // Mise à jour des données Google au même moment
+          googleData.push(lastGoogleLatency);
+          googleData.shift();
+          
+          updateGraph();
+          
           if(latency > 2000) {
             spinner.classList.remove('active');
           } else {
@@ -237,51 +262,66 @@
         .catch(err => {
           document.getElementById('statusDisplay').innerText = "Erreur de ping : " + err;
           spinner.classList.remove('active');
-          updateGraph(null);
+          localData.push(null);
+          localData.shift();
+          googleData.push(lastGoogleLatency);
+          googleData.shift();
+          updateGraph();
         });
     }
-    
+
+    function updateGooglePing() {
+      const spinner = document.getElementById('googleSpinner');
+      spinner.classList.add('active');
+
+      fetch('/googlePing')
+        .then(response => response.text())
+        .then(text => {
+          const [latency, timestamp] = text.split(',');
+          // Utiliser l'heure locale du navigateur comme pour le ping local
+          const localTime = new Date().toLocaleTimeString();
+
+          if (latency === '0') {
+            document.getElementById('googleLatencyDisplay').innerText = 'Échec';
+            document.getElementById('googleStatusDisplay').innerText = 
+              "Dernière tentative à " + localTime;
+            lastGoogleLatency = null;
+          } else {
+            document.getElementById('googleLatencyDisplay').innerText = latency + ' ms';
+            document.getElementById('googleStatusDisplay').innerText = 
+              "Dernier ping réussi à " + localTime;
+            lastGoogleLatency = parseInt(latency);
+          }
+          setTimeout(() => spinner.classList.remove('active'), 100);
+        })
+        .catch(err => {
+          document.getElementById('googleLatencyDisplay').innerText = '-- ms';
+          document.getElementById('googleStatusDisplay').innerText = "Erreur de récupération";
+          spinner.classList.remove('active');
+          lastGoogleLatency = null;
+        });
+    }
+
     // Ajuster la taille du canvas pour la résolution de l'écran
     function resizeCanvas() {
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
+      canvas.getContext('2d').scale(dpr, dpr);
+      updateGraph();
     }
     
     // Initialisation
     resizeCanvas();
-    window.addEventListener('resize', () => {
-      resizeCanvas();
-      updateGraph(null); // Redessiner le graphique après redimensionnement
-    });
-    setInterval(ping, 1000);
+    window.addEventListener('resize', resizeCanvas);
 
-    // Fonction pour récupérer les infos de ping Google
-    function updateGooglePing() {
-      fetch('/googlePing')
-        .then(response => response.text())
-        .then(text => {
-          const [latency, timestamp] = text.split(',');
-          if (latency === '0') {
-            document.getElementById('googleLatencyDisplay').innerText = 'Échec';
-            document.getElementById('googleStatusDisplay').innerText = 
-              "Dernière tentative à " + new Date(parseInt(timestamp)).toLocaleTimeString();
-          } else {
-            document.getElementById('googleLatencyDisplay').innerText = latency + ' ms';
-            document.getElementById('googleStatusDisplay').innerText = 
-              "Dernier ping réussi à " + new Date(parseInt(timestamp)).toLocaleTimeString();
-          }
-        })
-        .catch(err => {
-          document.getElementById('googleLatencyDisplay').innerText = '-- ms';
-          document.getElementById('googleStatusDisplay').innerText = "Erreur de récupération";
-        });
-    }
-
-    // Mettre à jour les infos de ping Google toutes les 2 secondes
+    // Démarrer les mises à jour
+    setInterval(ping, updateInterval);
     setInterval(updateGooglePing, 2000);
+
+    // Faire une première mise à jour des données Google
+    updateGooglePing();
   </script>
 </body>
 </html>

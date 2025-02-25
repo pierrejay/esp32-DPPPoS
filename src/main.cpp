@@ -2,6 +2,7 @@
 #include "DPPPoS.h"
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
+#include <time.h>
 
 #define USB Serial
 #define UART Serial1
@@ -47,15 +48,15 @@ void pingGoogle() {
     uint32_t duration = endTime - startTime;
     logf("\nPing completed in %d ms\n", duration);
     
-    // Sauvegarder les informations du ping
+    // Sauvegarder les informations du ping avec le timestamp Unix actuel
     lastGooglePing.latency = duration;
-    lastGooglePing.timestamp = millis();
+    lastGooglePing.timestamp = time(nullptr) * 1000; // Convertir en millisecondes pour JS
     
     client.stop();
   } else {
     logln("Failed to connect to google.com");
     lastGooglePing.latency = 0;
-    lastGooglePing.timestamp = millis();
+    lastGooglePing.timestamp = time(nullptr) * 1000;
   }
 }
 
@@ -127,6 +128,18 @@ void setup() {
       delay(1000);
     }
   }
+
+  // Configuration et attente de la synchronisation NTP
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  
+  // Attendre que l'heure soit synchronisée
+  logln("Attente de la synchronisation NTP...");
+  time_t now = 0;
+  while (now < 24 * 3600) {  // On attend d'avoir une date > 1er Jan 1970
+    vTaskDelay(pdMS_TO_TICKS(100));
+    now = time(nullptr);
+  }
+  logln("Heure synchronisée !");
 
   // Modification de la route racine pour servir index.html
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
