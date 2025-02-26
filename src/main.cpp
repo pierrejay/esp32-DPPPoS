@@ -20,8 +20,8 @@ static const IPAddress PPPOS_GATEWAY(10, 0, 0, 1);
 static const IPAddress PPPOS_DNS(8, 8, 8, 8);
 static constexpr uint32_t PPPOS_GATEWAY_PORT = 8080;
 
-static constexpr uint32_t GOOGLE_PING_INTERVAL = 5000; // 0 = disabled
-static constexpr uint32_t GATEWAY_PING_INTERVAL = 1000; // 0 = disabled
+static constexpr uint32_t GOOGLE_PING_INTERVAL = 4000; // 0 = disabled
+static constexpr uint32_t GATEWAY_PING_INTERVAL = 4000; // 0 = disabled
 static constexpr uint32_t PING_TIMEOUT = 5000;
 static constexpr uint32_t PPP_CHECK_INTERVAL = 1000;
 
@@ -48,12 +48,12 @@ void pingGoogle() {
     while (client.connected() && millis() < timeout) {
       while (client.available()) {
         char c = client.read();
-        log(c);
+        // log(c);
       }
     }
     uint32_t endTime = millis();
     uint32_t duration = endTime - startTime;
-    logf("\nPing completed in %d ms\n", duration);
+    logf("\nGoogle Ping completed in %d ms\n", duration);
     
     // Sauvegarder les informations du ping avec le timestamp Unix actuel
     lastGooglePing.latency = duration;
@@ -82,12 +82,12 @@ void pingGateway() {
     while (client.connected() && millis() < timeout) {
       while (client.available()) {
         char c = client.read();
-        log(c);
+        // log(c);
       }
     }
     uint32_t endTime = millis();
     uint32_t duration = endTime - startTime;
-    logf("\nPing completed in %d ms\n", duration);
+    logf("\nGateway Ping completed in %d ms\n", duration);
     
     // Sauvegarder les informations du ping
     lastGatewayPing.latency = duration;
