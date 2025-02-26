@@ -14,7 +14,7 @@
       text-align: center;
     }
     .container {
-      max-width: 500px;
+      max-width: 700px;
       margin: auto;
     }
     h1 {
@@ -76,11 +76,11 @@
       background-color: #1e1e1e;
       border: 1px solid #333;
       border-radius: 4px;
-      max-width: 220px;
+      max-width: 230px;
     }
     .ping-box h2 {
       margin: 0;
-      font-size: 1.2em;
+      font-size: 1em;
     }
     .ping-box h2 .arrow {
       opacity: 0.7;
@@ -89,6 +89,7 @@
     }
     .ping-box.local h2 { color: #4CAF50; }
     .ping-box.google h2 { color: #2196F3; }
+    .ping-box.gateway h2 { color: #FF9800; }
   </style>
 </head>
 <body>
@@ -104,6 +105,16 @@
           <span id="latencyDisplay">-- ms</span>
         </div>
         <div class="status" id="statusDisplay">En attente du ping...</div>
+      </div>
+
+      <!-- Box ping Gateway -->
+      <div class="ping-box gateway">
+        <h2>Ping ESP32 <span class="arrow">↔</span> Host</h2>
+        <div class="latency">
+          <div class="spinner" id="gatewaySpinner"></div>
+          <span id="gatewayLatencyDisplay">-- ms</span>
+        </div>
+        <div class="status" id="gatewayStatusDisplay">En attente du ping...</div>
       </div>
 
       <!-- Box ping Google -->
@@ -133,6 +144,10 @@
     // Variables pour stocker la dernière valeur Google entre deux mises à jour
     let lastGoogleLatency = null;
     let lastGoogleTimestamp = null;
+
+    // Ajouter les variables pour le gateway
+    let lastGatewayLatency = null;
+    const gatewayData = new Array(maxDataPoints).fill(null);
 
     function updateGraph() {
       const ctx = canvas.getContext('2d');
@@ -220,9 +235,10 @@
         ctx.restore();
       }
       
-      // Dessiner les deux lignes
-      drawDataLine(localData, '#4CAF50');  // Vert pour local
-      drawDataLine(googleData, '#2196F3');  // Bleu pour Google
+      // Dessiner les trois lignes
+      drawDataLine(localData, '#4CAF50');    // Vert pour local
+      drawDataLine(gatewayData, '#FF9800');  // Orange pour gateway
+      drawDataLine(googleData, '#2196F3');   // Bleu pour Google
     }
 
     function ping() {
@@ -251,6 +267,10 @@
           googleData.push(lastGoogleLatency);
           googleData.shift();
           
+          // Mise à jour des données gateway
+          gatewayData.push(lastGatewayLatency);
+          gatewayData.shift();
+          
           updateGraph();
           
           if(latency > 2000) {
@@ -266,6 +286,8 @@
           localData.shift();
           googleData.push(lastGoogleLatency);
           googleData.shift();
+          gatewayData.push(lastGatewayLatency);
+          gatewayData.shift();
           updateGraph();
         });
     }
@@ -302,6 +324,37 @@
         });
     }
 
+    function updateGatewayPing() {
+      const spinner = document.getElementById('gatewaySpinner');
+      spinner.classList.add('active');
+
+      fetch('/gatewayPing')
+        .then(response => response.text())
+        .then(text => {
+          const [latency, timestamp] = text.split(',');
+          const localTime = new Date().toLocaleTimeString();
+
+          if (latency === '0') {
+            document.getElementById('gatewayLatencyDisplay').innerText = 'Échec';
+            document.getElementById('gatewayStatusDisplay').innerText = 
+              "Dernière tentative à " + localTime;
+            lastGatewayLatency = null;
+          } else {
+            document.getElementById('gatewayLatencyDisplay').innerText = latency + ' ms';
+            document.getElementById('gatewayStatusDisplay').innerText = 
+              "Dernier ping réussi à " + localTime;
+            lastGatewayLatency = parseInt(latency);
+          }
+          setTimeout(() => spinner.classList.remove('active'), 100);
+        })
+        .catch(err => {
+          document.getElementById('gatewayLatencyDisplay').innerText = '-- ms';
+          document.getElementById('gatewayStatusDisplay').innerText = "Erreur de récupération";
+          spinner.classList.remove('active');
+          lastGatewayLatency = null;
+        });
+    }
+
     // Ajuster la taille du canvas pour la résolution de l'écran
     function resizeCanvas() {
       const dpr = window.devicePixelRatio || 1;
@@ -319,9 +372,11 @@
     // Démarrer les mises à jour
     setInterval(ping, updateInterval);
     setInterval(updateGooglePing, 2000);
+    setInterval(updateGatewayPing, 2000);
 
     // Faire une première mise à jour des données Google
     updateGooglePing();
+    updateGatewayPing();
   </script>
 </body>
 </html>
