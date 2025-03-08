@@ -48,14 +48,14 @@ class DPPPoS {
 
     DPPPoS();
 
-    bool begin(HardwareSerial &serial, const IPConfig* config = nullptr);
+    bool begin(Stream& serial, const IPConfig* config = nullptr);
     bool connected() const;
     ConnectionStatus getStatus() const;
 
   private:
 
     // Private attributes
-    HardwareSerial* _serial;  // Serial port used for PPPoS
+    Stream* _serial;          // Serial port used for PPPoS
     ppp_pcb *ppp;             // PPP control block
     struct netif ppp_netif;   // PPP network interface
     volatile ConnectionStatus connectionStatus;

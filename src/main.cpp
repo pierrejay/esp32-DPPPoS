@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "DPPPoS.h"
 #include <ESPAsyncWebServer.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <time.h>
 
 #define USB Serial
@@ -10,7 +10,7 @@
 #define UART_TX_PIN D7
 #define UART_RX_PIN D6
 
-#define LOG_INTERFACE Serial
+#define LOG_INTERFACE UART
 #define log(x) LOG_INTERFACE.print(x)
 #define logln(x) LOG_INTERFACE.println(x)
 #define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
@@ -106,28 +106,47 @@ AsyncWebServer server(80);
 
 void setup() {
   // Initialize Serial for debugging
-  USB.begin(115200);
+  UART.begin(115200, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
   delay(3000);
 
   logln("== PPPoS Client Setup ==");
   
-  // Initialisation de SPIFFS
-  if(!SPIFFS.begin(true)){
-    logln("Une erreur est survenue lors de l'initialisation de SPIFFS");
-    return;
+  // Initialisation de LittleFS
+  if(LittleFS.begin(false)){ // Passez à false pour ne pas formatter
+    logln("LittleFS initialisé avec succès");
+    
+    // Liste des fichiers
+    File root = LittleFS.open("/");
+      if (!root){
+        logln("Impossible d'ouvrir le répertoire racine");
+      } else if(!root.isDirectory()){
+        logln("La racine n'est pas un répertoire");
+      } else {
+        logln("Listage des fichiers :");
+        File file = root.openNextFile();
+        if(!file) {
+          logln("Aucun fichier trouvé !");
+        }
+        while(file){
+          logf("  - Fichier: %s, taille: %d octets\n", file.name(), file.size());
+          file = root.openNextFile();
+        }
+      }
+  } else {
+    logln("ERREUR: LittleFS n'a pas pu être initialisé !");
   }
 
-  // Debug : Liste les fichiers présents dans SPIFFS
-  File root = SPIFFS.open("/");
+  // Debug : Liste les fichiers présents dans LittleFS
+  File root = LittleFS.open("/");
   File file = root.openNextFile();
   while(file){
     logf("Fichier trouvé: %s\n", file.name());
     file = root.openNextFile();
   }
 
-  UART.setTxBufferSize(DPPPoS::UART_TX_BUFFER_SIZE);
-  UART.setRxBufferSize(DPPPoS::UART_RX_BUFFER_SIZE);
-  UART.begin(PPPOS_BAUDRATE, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
+  USB.setTxBufferSize(DPPPoS::UART_TX_BUFFER_SIZE);
+  USB.setRxBufferSize(DPPPoS::UART_RX_BUFFER_SIZE);
+  USB.begin(PPPOS_BAUDRATE);
 
   // Custom IP configuration
   DPPPoS::IPConfig config = {
@@ -136,7 +155,7 @@ void setup() {
   };
 
   // Initialize with the custom configuration
-  if (!PPPoS.begin(UART, &config)) {
+  if (!PPPoS.begin(USB, &config)) {
     logln("PPPoS initialization failed, idling...");
     while (true) {
       delay(1000);
@@ -157,7 +176,7 @@ void setup() {
 
   // Modification de la route racine pour servir index.html
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/index.html", "text/html");
+    request->send(LittleFS, "/index.html", "text/html");
   });
 
   // Ajouter un endpoint léger pour le ping

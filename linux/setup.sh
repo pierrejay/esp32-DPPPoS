@@ -5,7 +5,7 @@
 # Start pppd (on ppp1 here)
 # - Interface IP address (gateway) : 10.0.0.1
 # - ESP32 IP address (client) : 10.0.0.2
-sudo pppd /dev/ttyUSB0 1500000 debug noauth local updetach unit 1 nobsdcomp novj nocrtscts 10.0.0.1:10.0.0.2
+sudo pppd /dev/ttyACM0 1500000 debug noauth local updetach unit 1 nobsdcomp novj nocrtscts 10.0.0.1:10.0.0.2
 
 # Enable IP forwarding
 # To make it permanent, add in /etc/sysctl.conf: net.ipv4.ip_forward = 1

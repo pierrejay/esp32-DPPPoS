@@ -2,7 +2,7 @@
 #include "lwip/dns.h"
 
 #ifdef DPPPOS_DEBUG
-  #define LOG_INTERFACE Serial
+  #define LOG_INTERFACE Serial1
   #define log(x) LOG_INTERFACE.print(x)
   #define logln(x) LOG_INTERFACE.println(x)
   #define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
@@ -18,7 +18,7 @@ DPPPoS::DPPPoS() : _serial(nullptr), ppp(nullptr), connectionStatus(DISCONNECTED
 
 // ---------------- PUBLIC METHODS ----------------
 
-bool DPPPoS::begin(HardwareSerial &serial, const IPConfig* config) {
+bool DPPPoS::begin(Stream& serial, const IPConfig* config) {
   _serial = &serial;
 
   if (config) _config = *config;
