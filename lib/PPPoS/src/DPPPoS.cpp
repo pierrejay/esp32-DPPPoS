@@ -194,7 +194,7 @@ void DPPPoS::setNetworkCfg(ip4_addr_t& gw, ip_addr_t& dns) {
 // ---------------- PPP CALLBACKS ----------------
 
 u32_t DPPPoS::pppos_output_cb(ppp_pcb *pcb, u8_t *data, u32_t len, void *ctx) {
-  DPPPoS* self = (DPPPoS*) ctx;
+  DPPPoS* self = (DPPPoS*)ctx;
   if (self && self->_serial) {
     size_t written = self->_serial->write(data, len);
     // Hexdump

@@ -1,6 +1,6 @@
 # Enable UART1 pins on MilkV Duo S (depends on the platform - typically not needed on Raspberry Pi)
-sudo cvi_pinmux -w JTAG_CPU_TMS/UART1_TX
-sudo cvi_pinmux -w JTAG_CPU_TCK/UART1_RX
+# sudo cvi_pinmux -w JTAG_CPU_TMS/UART1_TX
+# sudo cvi_pinmux -w JTAG_CPU_TCK/UART1_RX
 
 # Start pppd (on ppp1 here)
 # - Interface IP address (gateway) : 10.0.0.1
@@ -28,5 +28,5 @@ sudo iptables-save | sudo tee /etc/iptables.rules
 # (Local route must be enabled in the Tailscale admin console after sending the command)
 sudo tailscale up --advertise-routes=10.0.0.0/24
 
-# Launch the Python server in background mode to respond to HTTP GET requests
+# Launch a Python server in background mode to respond to HTTP GET requests
 nohup sudo python3 -m http.server 8080 &
