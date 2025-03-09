@@ -29,9 +29,7 @@ void setup() {
 
   // Initialize with the custom configuration
   if (!PPPoS.begin(UART, &config)) {
-    while (true) {
-      delay(1000);
-    }
+    while (true) delay(1000); // Loop if initialization fails
   }
 }
 

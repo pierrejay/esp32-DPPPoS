@@ -1,14 +1,14 @@
-# ESP32 DPPPoS Library
+# ESP32 Direct PPPoS Arduino Library
 
 ## Overview
 
-Implements a direct Point-to-Point Protocol (PPP) connection between an ESP32 and a host via UART. Unlike IDF PPPoS examples that require a GSM modem, it can establish a direct serial connection to a Linux machine natively supporting PPP, leveraging its routing and NAT capabilities to provide network connectivity to the ESP32.
+This Arduino library implements a direct Point-to-Point Protocol (PPP) connection between an ESP32 and a host via UART. Unlike IDF PPPoS examples that require a GSM modem, it can establish a direct serial connection to a Linux machine natively supporting PPP, leveraging its routing and NAT capabilities to provide network connectivity to the ESP32.
 
-This library seamlessly integrates with ESP32's native TCP/IP stack, making the PPP connection appear as a standard network interface (similar to WiFi or Ethernet). It is possible to usefamiliar Arduino networking APIs (`NetworkClient`, etc.) and popular libraries like `ESPAsyncWebServer` without any modifications.
+This library seamlessly integrates with ESP32's native TCP/IP stack, making the PPP connection appear as a standard network interface (similar to WiFi or Ethernet). It is possible to use the familiar Arduino networking APIs (`NetworkClient`, etc.) and popular libraries like `ESPAsyncWebServer` without any modifications.
 
 A cool feature is the ability to expose the ESP32 securely to the Internet through Tailscale running on the Linux host. This provides a simple yet secure way to create remotely accessible IoT devices without complex VPN setups or cloud service dependencies.
 
-Builds upon the concepts from [ESP32-PPPos-TLS](https://github.com/hussainhadi673/ESP32-PPPos-TLS) by hussainhadi673, reimplemented as a standalone Arduino library without TLS. For most remote control use cases, the security provided by Tailscale's encrypted mesh network is sufficient, eliminating the need for additional TLS overhead.
+This code builds upon the concepts from [ESP32-PPPos-TLS](https://github.com/hussainhadi673/ESP32-PPPos-TLS) by hussainhadi673, reimplemented as a standalone Arduino library without TLS. For most remote control use cases, the security can be implemented on the host side (e.g. Tailscale's encrypted mesh network), eliminating the need for additional TLS overhead.
 
 ## Prerequisites
 
@@ -46,7 +46,10 @@ Builds upon the concepts from [ESP32-PPPos-TLS](https://github.com/hussainhadi67
 ### 1. Initialize the Library
 
 ```cpp
-// Configure Serial for PPPoS
+// Configure Serial1 for PPPoS with improved buffer sizes 
+// (2048 by default, useful as the default PPP MTU is 1500)
+Serial1.setTxBufferSize(DPPPoS::UART_TX_BUFFER_SIZE);
+Serial1.setRxBufferSize(DPPPoS::UART_RX_BUFFER_SIZE);
 Serial1.begin(115200, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
 
 // Optional: Custom IP configuration
@@ -62,6 +65,8 @@ if (!PPPoS.begin(Serial1, &config)) {
 }
 ```
 
+No call to `PPPoS.loop()` is required in your code, PPP data is automatically sent and received in the background by the `LoopTask` task (for better performance it can be pinned to core 0 if required).
+
 ### 2. Monitor Connection Status
 
 ```cpp
@@ -69,6 +74,7 @@ void loop() {
     if (PPPoS.connected()) {
         // Your network code here
     } else {
+        // You can handle disconnection here
         Serial.println("Waiting for PPP connection...");
         delay(1000);
     }
@@ -77,35 +83,10 @@ void loop() {
 
 ## Linux Host Configuration
 
-### 1. PPP Setup Script
-
-Save the following script as `setup.sh`:
-
-```bash
-# Start pppd daemon
-sudo pppd /dev/ttyUSB0 115200 debug noauth local updetach unit 1 \
-    nobsdcomp novj nocrtscts 10.0.0.1:10.0.0.2
-
-# Enable IP forwarding
-sudo sysctl -w net.ipv4.ip_forward=1
-
-# Setup NAT for Internet access
-sudo iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -j MASQUERADE
-
-# Save iptables rules
-sudo iptables-save | sudo tee /etc/iptables.rules
-```
-
-### 2. Remote Access with Tailscale (Optional)
-
-To enable secure remote access:
-
-```bash
-# Advertise the PPP network on Tailscale
-sudo tailscale up --advertise-routes=10.0.0.0/24
-```
-
-Note: Route approval in Tailscale admin console is required.
+Refer to the `linux/setup.sh` script for guidelines on :
+- Setting up the PPP connection
+- Enabling internet access from the ESP32
+- Routing external traffic to the ESP32
 
 ## Advanced Features
 
@@ -147,6 +128,11 @@ void setup() {
 }
 ```
 
+### Example sketches
+
+- [src/main.cpp](src/main.cpp) provides a minimal example of using the library with custom IP configuration
+- [examples/main.cpp](examples/main.cpp) provides an example of using the library to send HTTP GET requests local and remote machines (Linux host + google.com) and exposes a basic web page to show performance metrics (GET request RTT). Follow instructions in the `setup.sh` script to setup the Python server on the host that will reply to GET requests + upload filesystem to ESP32 flash to get access to the web page.
+
 ## Debugging
 
 Enable debug output by defining `PPPOS_DEBUG` (e.g. in your `platformio.ini` file):
@@ -166,38 +152,7 @@ The library manages the following connection states:
 - `CONNECTION_LOST`: Connection lost, will attempt reconnection
 - `DISCONNECTED`: Disconnected from network
 
-## Error Handling
-
-The library includes automatic error recovery:
-
-- Watchdog task monitoring connection status
-- Automatic reconnection attempts
-- Connection state management
-- ESP32 PPP driver error handling
-
-## Performance Considerations
-
-### Buffer Sizes
-
-Default UART buffer sizes (configurable):
-```cpp
-static constexpr uint16_t UART_RX_BUFFER_SIZE = 2048;
-static constexpr uint16_t UART_TX_BUFFER_SIZE = 2048;
-```
-
-### Task Priorities
-
-The library creates two FreeRTOS tasks:
-```cpp
-static constexpr uint8_t NET_WATCHDOG_TASK_PRIORITY = 1;
-static constexpr uint8_t LOOP_TASK_PRIORITY = 5;
-```
-
-## Security Considerations
-
-- The PPP connection itself is unencrypted
-- When used with Tailscale, the connection is secured by Tailscale's encryption
-- The library does not implement TLS, use a secure client if required
+A dedicated task (`NetWatchdogTask`) monitors the connection status and attempts reconnection if the connection is lost.
 
 ## License
 
