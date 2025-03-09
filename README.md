@@ -133,7 +133,7 @@ void setup() {
 ### Example sketches
 
 - [src/main.cpp](src/main.cpp) provides a minimal example of using the library with custom IP configuration
-- [examples/main.cpp](examples/main.cpp) provides an example of using the library to send HTTP GET requests local and remote machines (Linux host + google.com) and exposes a basic web page to show performance metrics (GET request RTT). Follow instructions in the `setup.sh` script to setup the Python server on the host that will reply to GET requests + upload filesystem to ESP32 flash to get access to the web page.
+- [examples/main.cpp](examples/main.cpp) provides an example of using the library to send HTTP GET requests to local and remote machines (Linux host + google.com) and exposes a basic web page to show performance metrics (GET request RTT). Follow instructions in the `setup.sh` script to setup the Python server on the host that will reply to GET requests + upload filesystem to ESP32 flash to get access to the web page.
 
 ## Debugging
 
