@@ -280,6 +280,3 @@ void DPPPoS::IPAddressToLwIP(const IPAddress &arduino_ip, ip4_addr_t &lwip_ip) {
     arduino_ip[3]
   );
 } // IPAddressToLwIP()
-
-// Global instance of the library (for simple access from the sketch)
-DPPPoS PPPoS;
