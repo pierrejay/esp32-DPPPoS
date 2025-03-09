@@ -18,8 +18,6 @@
 class DPPPoS {
   public:
       // Default values
-      static const IPAddress DEFAULT_GATEWAY;
-      static const IPAddress DEFAULT_DNS;
       static constexpr uint16_t UART_RX_BUFFER_SIZE = 2048;
       static constexpr uint16_t UART_TX_BUFFER_SIZE = 2048;
       static constexpr uint16_t DISCONNECT_CLEANUP_DELAY = 1000;
@@ -30,13 +28,8 @@ class DPPPoS {
       static constexpr uint32_t NETWATCHDOGTASK_STACK_SIZE = 16384;
 
     struct IPConfig {
-      IPAddress gateway;
-      IPAddress dns;
-      
-      void setDefault() {
-        if (gateway == IPAddress(0,0,0,0)) gateway = DEFAULT_GATEWAY;
-        if (dns == IPAddress(0,0,0,0)) dns = DEFAULT_DNS;
-      }
+      IPAddress gateway = IPAddress(0,0,0,0);
+      IPAddress dns = IPAddress(0,0,0,0);
     };
 
     enum ConnectionStatus {

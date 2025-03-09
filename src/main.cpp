@@ -10,7 +10,7 @@
 #define UART_TX_PIN D7
 #define UART_RX_PIN D6
 
-#define LOG_INTERFACE UART
+#define LOG_INTERFACE USB
 #define log(x) LOG_INTERFACE.print(x)
 #define logln(x) LOG_INTERFACE.println(x)
 #define logf(x, ...) LOG_INTERFACE.printf(x, __VA_ARGS__)
@@ -102,7 +102,7 @@ AsyncWebServer server(80);
 
 void setup() {
   // Initialize Serial for debugging
-  UART.begin(115200, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
+  USB.begin(115200);
   delay(3000);
 
   logln("== PPPoS Client Setup ==");
@@ -131,9 +131,9 @@ void setup() {
     logln("ERROR: Failed to mount LittleFS");
   }
 
-  USB.setTxBufferSize(DPPPoS::UART_TX_BUFFER_SIZE);
-  USB.setRxBufferSize(DPPPoS::UART_RX_BUFFER_SIZE);
-  USB.begin(PPPOS_BAUDRATE);
+  UART.setTxBufferSize(DPPPoS::UART_TX_BUFFER_SIZE);
+  UART.setRxBufferSize(DPPPoS::UART_RX_BUFFER_SIZE);
+  UART.begin(PPPOS_BAUDRATE, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
 
   // Custom IP configuration
   DPPPoS::IPConfig config = {
@@ -142,7 +142,7 @@ void setup() {
   };
 
   // Initialize with the custom configuration
-  if (!PPPoS.begin(USB, &config)) {
+  if (!PPPoS.begin(UART, &config)) {
     logln("PPPoS initialization failed, idling...");
     while (true) {
       delay(1000);
@@ -161,30 +161,29 @@ void setup() {
   }
   logln("NTP synchronization complete");
 
-  // ESPAsyncWebServer HTTP routes
-
-  // Homepage
+  // HTTP Routes - Homepage
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(LittleFS, "/index.html", "text/html");
   });
 
-  // Lightweight GET ping endpoint
+  // HTTP Routes - Lightweight GET ping endpoint
   server.on("/ping", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/plain", "pong");
   });
 
-  // Endpoint to retrieve Google GET ping info
+  // HTTP Routes - Endpoint to retrieve Google GET ping info
   server.on("/googlePing", HTTP_GET, [](AsyncWebServerRequest *request){
     String response = String(lastGooglePing.latency) + "," + String(lastGooglePing.timestamp);
     request->send(200, "text/plain", response);
   });
 
-  // Endpoint to retrieve Gateway GET ping info
+  // HTTP Routes - Endpoint to retrieve Gateway GET ping info
   server.on("/gatewayPing", HTTP_GET, [](AsyncWebServerRequest *request){
     String response = String(lastGatewayPing.latency) + "," + String(lastGatewayPing.timestamp);
     request->send(200, "text/plain", response);
   });
 
+  // Start the HTTP server
   server.begin();
 }
 
