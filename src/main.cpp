@@ -25,17 +25,13 @@ static constexpr uint32_t GATEWAY_PING_INTERVAL = 4000; // 0 = disabled
 static constexpr uint32_t PING_TIMEOUT = 5000;
 static constexpr uint32_t PPP_CHECK_INTERVAL = 1000;
 
-// Structure pour stocker la dernière mesure de ping Google
-struct GooglePingInfo {
+// Stores last Google & Gateway ping info
+struct PingInfo {
   uint32_t latency;
   uint32_t timestamp;
-} lastGooglePing = {0, 0};
-
-// Ajouter cette structure pour le ping gateway
-struct GatewayPingInfo {
-  uint32_t latency;
-  uint32_t timestamp;
-} lastGatewayPing = {0, 0};
+};
+PingInfo lastGooglePing = {0, 0};
+PingInfo lastGatewayPing = {0, 0};
 
 // Example of function using the Arduino TCP/IP API to perform a TCP connection
 void pingGoogle() {
@@ -111,37 +107,28 @@ void setup() {
 
   logln("== PPPoS Client Setup ==");
   
-  // Initialisation de LittleFS
-  if(LittleFS.begin(false)){ // Passez à false pour ne pas formatter
-    logln("LittleFS initialisé avec succès");
+  // Mount LittleFS & list files
+  if(LittleFS.begin(false)){
+    logln("LittleFS successfully mounted");
     
-    // Liste des fichiers
     File root = LittleFS.open("/");
       if (!root){
-        logln("Impossible d'ouvrir le répertoire racine");
+        logln("Failed to open root directory");
       } else if(!root.isDirectory()){
-        logln("La racine n'est pas un répertoire");
+        logln("Root is not a directory");
       } else {
-        logln("Listage des fichiers :");
+        logln("Listing files:");
         File file = root.openNextFile();
         if(!file) {
-          logln("Aucun fichier trouvé !");
+          logln("No files found !");
         }
         while(file){
-          logf("  - Fichier: %s, taille: %d octets\n", file.name(), file.size());
+          logf("  - File: %s, size: %d bytes\n", file.name(), file.size());
           file = root.openNextFile();
         }
       }
   } else {
-    logln("ERREUR: LittleFS n'a pas pu être initialisé !");
-  }
-
-  // Debug : Liste les fichiers présents dans LittleFS
-  File root = LittleFS.open("/");
-  File file = root.openNextFile();
-  while(file){
-    logf("Fichier trouvé: %s\n", file.name());
-    file = root.openNextFile();
+    logln("ERROR: Failed to mount LittleFS");
   }
 
   USB.setTxBufferSize(DPPPoS::UART_TX_BUFFER_SIZE);
@@ -162,35 +149,37 @@ void setup() {
     }
   }
 
-  // Configuration et attente de la synchronisation NTP
+  // Configure & wait for NTP synchronization
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   
-  // Attendre que l'heure soit synchronisée
-  logln("Attente de la synchronisation NTP...");
+  // Wait for NTP synchronization
+  logln("Waiting for NTP synchronization...");
   time_t now = 0;
   while (now < 24 * 3600) {  // On attend d'avoir une date > 1er Jan 1970
     vTaskDelay(pdMS_TO_TICKS(100));
     now = time(nullptr);
   }
-  logln("Heure synchronisée !");
+  logln("NTP synchronization complete");
 
-  // Modification de la route racine pour servir index.html
+  // ESPAsyncWebServer HTTP routes
+
+  // Homepage
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(LittleFS, "/index.html", "text/html");
   });
 
-  // Ajouter un endpoint léger pour le ping
+  // Lightweight GET ping endpoint
   server.on("/ping", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/plain", "pong");
   });
 
-  // Ajouter un nouvel endpoint pour récupérer les infos de ping Google
+  // Endpoint to retrieve Google GET ping info
   server.on("/googlePing", HTTP_GET, [](AsyncWebServerRequest *request){
     String response = String(lastGooglePing.latency) + "," + String(lastGooglePing.timestamp);
     request->send(200, "text/plain", response);
   });
 
-  // Ajouter un endpoint pour récupérer les infos de ping Gateway
+  // Endpoint to retrieve Gateway GET ping info
   server.on("/gatewayPing", HTTP_GET, [](AsyncWebServerRequest *request){
     String response = String(lastGatewayPing.latency) + "," + String(lastGatewayPing.timestamp);
     request->send(200, "text/plain", response);
