@@ -19,10 +19,12 @@ This code builds upon the concepts from [ESP32-PPPos-TLS](https://github.com/hus
 
 ## Installation
 
-1. Clone or download the library to your Arduino project's `lib` directory
-2. Include the header in your project:
+1. Clone or download the library (`lib/DPPPoS`) to your Arduino project's `lib` directory
+2. Include the header in your project & declare an instance of the `DPPPoS` class:
 ```cpp
-#include "PPPoS.h"
+#include "DPPPoS.h"
+
+DPPPoS PPPoS;
 ```
 
 ## Hardware Setup
